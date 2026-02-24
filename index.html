@@ -271,8 +271,6 @@ function PokerDashboard() {
     const totalHours = dailySessions.reduce((s, x) => s + x.h, 0);
     const totalPoker = totalMonthlyResult + dailyResult;
     const totalBettingEur = allBetting.reduce((s, x) => s + x.v, 0); // in EUR
-    const totalBettingUsd = Math.round(totalBettingEur * eurUsd);
-    const totalResult = totalPoker + totalBettingUsd;
     const totalCashouts = allCashouts.reduce((s, x) => s + x.v, 0);
 
     const now = new Date();
@@ -291,10 +289,6 @@ function PokerDashboard() {
     const monthBettingEur = allBetting.filter(b => getYM(b.d) === curMonth).reduce((s,x) => s+x.v, 0);
     const yearBettingEur = allBetting.filter(b => getY(b.d) === curYear).reduce((s,x) => s+x.v, 0);
 
-    // Combined (convert betting EUR to USD for totals)
-    const monthResult = monthPoker + Math.round(monthBettingEur * eurUsd);
-    const yearResult = yearPoker + Math.round(yearBettingEur * eurUsd);
-
     // Win/loss stats — daily only (fair comparison)
     const winDays = dailySessions.filter(s => s.r > 0).length;
     const lossDays = dailySessions.filter(s => s.r < 0).length;
@@ -304,34 +298,21 @@ function PokerDashboard() {
     const bestDay = dailySessions.reduce((best, s) => s.r > best.r ? s : best, dailySessions[0]);
     const worstDay = dailySessions.reduce((worst, s) => s.r < worst.r ? s : worst, dailySessions[0]);
 
-    // Monthly aggregation — combine poker + betting
+    // Monthly aggregation — POKER ONLY (betting separate)
     const byMonth = {};
 
-    // Add pre-2020 + early 2020 monthly entries (no hours)
     allMonthly.forEach(m => {
       const ym = getYM(m.d);
-      byMonth[ym] = { result: m.r, poker: m.r, betting: 0, hours: 0, sessions: 0, isMonthly: true };
+      byMonth[ym] = { result: m.r, hours: 0, sessions: 0, isMonthly: true };
     });
 
-    // Add daily sessions aggregated by month
     dailySessions.forEach(s => {
       const ym = getYM(s.d);
-      if (!byMonth[ym]) byMonth[ym] = { result: 0, poker: 0, betting: 0, hours: 0, sessions: 0, isMonthly: false };
+      if (!byMonth[ym]) byMonth[ym] = { result: 0, hours: 0, sessions: 0, isMonthly: false };
       byMonth[ym].result += s.r;
-      byMonth[ym].poker += s.r;
       byMonth[ym].hours += s.h;
       byMonth[ym].sessions++;
       byMonth[ym].isMonthly = false;
-    });
-
-    // Add betting to monthly (EUR → USD for combined, keep EUR)
-    allBetting.forEach(b => {
-      const ym = getYM(b.d);
-      if (!byMonth[ym]) byMonth[ym] = { result: 0, poker: 0, betting: 0, bettingEur: 0, hours: 0, sessions: 0, isMonthly: false };
-      const bUsd = Math.round(b.v * eurUsd);
-      byMonth[ym].result += bUsd;
-      byMonth[ym].betting += bUsd;
-      byMonth[ym].bettingEur = (byMonth[ym].bettingEur || 0) + b.v;
     });
 
     const monthlyData = Object.entries(byMonth)
@@ -340,27 +321,24 @@ function PokerDashboard() {
         month: ym,
         label: monthNames[parseInt(ym.slice(5,7))-1] + " " + ym.slice(2,4),
         ...data,
-        dph: data.hours > 0 ? data.poker / data.hours : null,
+        dph: data.hours > 0 ? data.result / data.hours : null,
       }));
 
-    // Best/worst MONTH — all months (combined result)
+    // Best/worst MONTH — poker only
     const bestMonth = monthlyData.reduce((best, m) => m.result > best.result ? m : best, monthlyData[0]);
     const worstMonth = monthlyData.reduce((worst, m) => m.result < worst.result ? m : worst, monthlyData[0]);
 
-    // Build combined event list for equity curve (poker + betting merged by date)
-    // Sort all events chronologically
-    const allEvents = [];
-    allMonthly.forEach(m => allEvents.push({ d: m.d, v: m.r, type: "monthly" }));
-    dailySessions.forEach(s => allEvents.push({ d: s.d, v: s.r, type: "daily" }));
-    allBetting.forEach(b => allEvents.push({ d: b.d, v: Math.round(b.v * eurUsd), type: "betting" }));
-    allEvents.sort((a,b) => a.d.localeCompare(b.d));
+    // POKER equity curve (no betting)
+    const pokerEvents = [];
+    allMonthly.forEach(m => pokerEvents.push({ d: m.d, v: m.r }));
+    dailySessions.forEach(s => pokerEvents.push({ d: s.d, v: s.r }));
+    pokerEvents.sort((a,b) => a.d.localeCompare(b.d));
 
-    // Raw equity curve (for short periods)
     const equityCurveRaw = [];
     let cumul = 0;
-    allEvents.forEach(e => {
+    pokerEvents.forEach(e => {
       cumul += e.v;
-      equityCurveRaw.push({ d: e.d, v: cumul, type: e.type });
+      equityCurveRaw.push({ d: e.d, v: cumul });
     });
 
     // Monthly-aggregated equity curve (for all-time view)
@@ -368,7 +346,7 @@ function PokerDashboard() {
     const monthlyEndpoints = {};
     equityCurveRaw.forEach(p => {
       const ym = getYM(p.d);
-      monthlyEndpoints[ym] = p.v; // last value per month
+      monthlyEndpoints[ym] = p.v;
     });
     Object.entries(monthlyEndpoints)
       .sort(([a],[b]) => a.localeCompare(b))
@@ -376,18 +354,25 @@ function PokerDashboard() {
         equityCurveMonthly.push({ d: ym + "-28", v });
       });
 
-    // Year aggregation — all data (poker + betting)
+    // BETTING equity curve (EUR)
+    const bettingSorted = [...allBetting].sort((a,b) => a.d.localeCompare(b.d));
+    const bettingEquity = [];
+    let bCumul = 0;
+    bettingSorted.forEach(b => {
+      bCumul += b.v;
+      bettingEquity.push({ d: b.d, v: bCumul });
+    });
+
+    // Year aggregation — poker and betting separate
     const byYear = {};
     allMonthly.forEach(m => {
       const y = getY(m.d);
-      if (!byYear[y]) byYear[y] = { result: 0, poker: 0, betting: 0, hours: 0, sessions: 0, hasHours: false };
-      byYear[y].result += m.r;
+      if (!byYear[y]) byYear[y] = { poker: 0, bettingEur: 0, hours: 0, sessions: 0, hasHours: false };
       byYear[y].poker += m.r;
     });
     dailySessions.forEach(s => {
       const y = getY(s.d);
-      if (!byYear[y]) byYear[y] = { result: 0, poker: 0, betting: 0, hours: 0, sessions: 0, hasHours: true };
-      byYear[y].result += s.r;
+      if (!byYear[y]) byYear[y] = { poker: 0, bettingEur: 0, hours: 0, sessions: 0, hasHours: true };
       byYear[y].poker += s.r;
       byYear[y].hours += s.h;
       byYear[y].sessions++;
@@ -395,14 +380,11 @@ function PokerDashboard() {
     });
     allBetting.forEach(b => {
       const y = getY(b.d);
-      if (!byYear[y]) byYear[y] = { result: 0, poker: 0, betting: 0, bettingEur: 0, hours: 0, sessions: 0, hasHours: false };
-      const bUsd = Math.round(b.v * eurUsd);
-      byYear[y].result += bUsd;
-      byYear[y].betting += bUsd;
-      byYear[y].bettingEur = (byYear[y].bettingEur || 0) + b.v;
+      if (!byYear[y]) byYear[y] = { poker: 0, bettingEur: 0, hours: 0, sessions: 0, hasHours: false };
+      byYear[y].bettingEur += b.v;
     });
 
-    // Max drawdown — full equity curve
+    // Max drawdown — poker equity curve
     let maxEquity = 0;
     let maxDrawdown = 0;
     equityCurveRaw.forEach(p => {
@@ -411,29 +393,26 @@ function PokerDashboard() {
       if (dd < maxDrawdown) maxDrawdown = dd;
     });
 
-    // Best/worst year
-    const yearEntries = Object.entries(byYear).map(([y, d]) => ({ year: y, result: d.result }));
+    // Best/worst year — poker only
+    const yearEntries = Object.entries(byYear).map(([y, d]) => ({ year: y, result: d.poker }));
     const bestYear = yearEntries.reduce((best, y) => y.result > best.result ? y : best, yearEntries[0]);
     const worstYear = yearEntries.reduce((worst, y) => y.result < worst.result ? y : worst, yearEntries[0]);
 
     return {
-      totalResult, totalPoker, totalBettingEur, totalBettingUsd, totalCashouts,
+      totalPoker, totalBettingEur, totalCashouts,
       totalHours, dailyResult,
-      monthResult, monthPoker, monthBettingEur, monthHours,
-      yearResult, yearPoker, yearBettingEur, yearHours,
+      monthPoker, monthBettingEur, monthHours,
+      yearPoker, yearBettingEur, yearHours,
       winDays, lossDays, winPct,
       bestDay, worstDay, bestMonth, worstMonth, bestYear, worstYear,
-      monthlyData, equityCurveRaw, equityCurveMonthly, byYear,
+      monthlyData, equityCurveRaw, equityCurveMonthly, bettingEquity, byYear,
       dailySessions: dailySessions.length,
       dphAll: totalHours > 0 ? dailyResult / totalHours : 0,
       dphYear: yearHours > 0 ? yearPoker / yearHours : 0,
       dphMonth: monthHours > 0 ? monthPoker / monthHours : 0,
       maxDrawdown,
-      bankrollTotal: Object.values(bankroll).reduce((s,v) => s+v, 0),
       bankrollPoker: Object.values(bankroll).reduce((s,v) => s+v, 0),
       bankrollBettingEur: bettingBR,
-      bankrollBetting: Math.round(bettingBR * eurUsd),
-      bankrollAll: Object.values(bankroll).reduce((s,v) => s+v, 0) + Math.round(bettingBR * eurUsd),
     };
   }, [dailySessions, monthlyPre, allCashouts, allBetting, bankroll, bettingBR, eurUsd]);
 
@@ -476,14 +455,11 @@ function PokerDashboard() {
 
   // Bankroll pie data (including betting)
   const bankrollPie = useMemo(() => {
-    const entries = Object.entries(bankroll)
+    return Object.entries(bankroll)
       .filter(([,v]) => v > 0)
-      .map(([name, value]) => ({ name, value }));
-    if (bettingBR > 0) {
-      entries.push({ name: "Беттинг", value: Math.round(bettingBR * eurUsd) });
-    }
-    return entries.sort((a,b) => b.value - a.value);
-  }, [bankroll, bettingBR, eurUsd]);
+      .map(([name, value]) => ({ name, value }))
+      .sort((a,b) => b.value - a.value);
+  }, [bankroll]);
 
   const tabs = [
     { id: "dash", label: "\u0414\u0430\u0448\u0431\u043e\u0440\u0434", icon: "\u25a6" },
@@ -555,10 +531,10 @@ function PokerDashboard() {
           </div>
         </div>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", textAlign: "right" }}>
-          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.1em" }}>Покер + Беттинг</div>
-          <div style={{ fontSize: 22, fontWeight: 600, color: C.green }}>{fmtPlain(stats.bankrollAll)}</div>
+          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.1em" }}>Банкролл</div>
+          <div style={{ fontSize: 20, fontWeight: 600, color: C.green }}>{fmtPlain(stats.bankrollPoker)}</div>
           <div style={{ fontSize: 11, color: C.textDim }}>
-            покер {fmtPlain(stats.bankrollPoker)} · беттинг €{bettingBR.toLocaleString()} · <span style={{ color: C.textMuted }}>€/$ {eurUsd}</span>
+            покер · беттинг <span style={{ color: C.gold }}>€{bettingBR.toLocaleString()}</span>
             {<span style={{ marginLeft: 6, color: saveStatus === "ok" ? C.green : saveStatus === "saving" ? C.gold : C.red }}>{saveStatus === "ok" ? "● синхр" : saveStatus === "saving" ? "● ..." : "● ошибка"}</span>}
           </div>
           <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
@@ -611,7 +587,7 @@ function PokerDashboard() {
           customRange={customRange} setCustomRange={setCustomRange}
           filteredEquity={filteredEquity} filteredMonthly={filteredMonthly} cashouts={allCashouts} />}
         {tab === "bankroll" && <BankrollTab bankroll={bankroll} bankrollPie={bankrollPie} total={stats.bankrollPoker}
-          cashouts={allCashouts} bettingBankroll={bettingBR} totalAll={stats.bankrollAll} eurUsd={eurUsd} />}
+          cashouts={allCashouts} bettingBankroll={bettingBR} />}
         {tab === "stats" && <StatsTab stats={stats} sessions={dailySessions} statsPeriod={statsPeriod} setStatsPeriod={setStatsPeriod}
           customRange={customRange} setCustomRange={setCustomRange} cashouts={allCashouts} />}
       </div>
@@ -672,7 +648,6 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
   const submitBetting = () => {
     const result = parseFloat(betResultEur);
     if (isNaN(result)) return;
-    // Store as last day of selected month in EUR
     const [y, m] = betMonth.split("-");
     const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
     const dateStr = `${betMonth}-${String(lastDay).padStart(2,"0")}`;
@@ -682,21 +657,11 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
     let updated;
     if (existingIdx >= 0) {
       updated = newBettingEntries.map((e, i) => i === existingIdx
-        ? { d: e.d, v: e.v + result }
-        : e);
+        ? { d: e.d, v: e.v + result } : e);
     } else {
-      // Also check if same month exists in hardcoded betting data
-      const hardcodedIdx = betting.findIndex(e => e.d.slice(0,7) === betMonth);
-      if (hardcodedIdx >= 0) {
-        // Create new entry that adds to hardcoded value — but since allBetting merges both,
-        // we just add the delta as new entry
-        updated = [...newBettingEntries, entry];
-      } else {
-        updated = [...newBettingEntries, entry];
-      }
+      updated = [...newBettingEntries, entry];
     }
     saveNewBetting(updated);
-    // Update bankroll
     const newBR = parseFloat(betBankrollEur);
     if (!isNaN(newBR)) saveBettingBR(newBR);
     setBetResultEur("");
@@ -932,7 +897,7 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
 
           <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>БАНКРОЛЛ БЕТТИНГА (€)</div>
+              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>БАНКРОЛЛ (€)</div>
               <input type="number" value={betBankrollEur}
                 onChange={e => setBetBankrollEur(e.target.value)} style={inputStyle} />
             </div>
@@ -949,12 +914,9 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
               <div style={{ fontSize: 12, color: C.textDim }}>
                 {monthNames[parseInt(betMonth.slice(5,7))-1]} {betMonth.slice(0,4)}
               </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 22, fontWeight: 600, fontFamily: "'JetBrains Mono'",
-                  color: parseFloat(betResultEur) >= 0 ? C.green : C.red }}>
-                  €{parseFloat(betResultEur).toLocaleString()}
-                </div>
-                <div style={{ fontSize: 11, color: C.textDim }}>≈ {fmt(Math.round(parseFloat(betResultEur) * eurUsd))}</div>
+              <div style={{ fontSize: 22, fontWeight: 600, fontFamily: "'JetBrains Mono'",
+                color: parseFloat(betResultEur) >= 0 ? C.green : C.red }}>
+                €{parseFloat(betResultEur).toLocaleString()}
               </div>
             </div>
           )}
@@ -968,7 +930,6 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
             {saved === "betting" ? "\u2713 Сохранено!" : "Записать результат"}
           </button>
 
-          {/* Betting history — simple monthly list */}
           {(betting.length > 0 || newBettingEntries.length > 0) && (
             <div style={{ marginTop: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -977,7 +938,7 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
                   Всего: €{[...betting, ...newBettingEntries].reduce((s,e) => s+e.v, 0).toLocaleString()}
                 </div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 300, overflowY: "auto" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {[...betting, ...newBettingEntries]
                   .sort((a,b) => b.d.localeCompare(a.d))
                   .map((e, i) => (
@@ -1054,21 +1015,20 @@ function DashboardTab({ stats, bankrollPie, equityCurveRaw }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Top metrics */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <MetricCard label="Всего (с 2013)" value={fmtPlain(stats.totalResult)} color={C.green}
-          sub={`покер ${fmtPlain(stats.totalPoker)} · бет €${stats.totalBettingEur.toLocaleString()}`} />
-        <MetricCard label="За год" value={fmt(stats.yearResult)} color={stats.yearResult >= 0 ? C.green : C.red}
-          sub={`покер ${fmt(stats.yearPoker)} · бет €${stats.yearBettingEur.toLocaleString()}`} />
-        <MetricCard label="За месяц" value={fmt(stats.monthResult)} color={stats.monthResult >= 0 ? C.green : C.red}
-          sub={`покер ${fmt(stats.monthPoker)} · бет €${stats.monthBettingEur.toLocaleString()}`} />
-        <MetricCard label="$/час (покер)" value={`$${stats.dphAll.toFixed(1)}`} color={C.gold}
-          sub={`${stats.totalHours.toFixed(0)} ч · Win ${stats.winPct.toFixed(0)}% · ${stats.dailySessions} сесс`} />
+        <MetricCard label="Покер (с 2013)" value={fmtPlain(stats.totalPoker)} color={C.green}
+          sub={`${stats.totalHours.toFixed(0)} ч · $${stats.dphAll.toFixed(1)}/ч`} />
+        <MetricCard label="Беттинг всего" value={`€${stats.totalBettingEur.toLocaleString()}`} color={C.gold} />
+        <MetricCard label="Покер за год" value={fmt(stats.yearPoker)} color={stats.yearPoker >= 0 ? C.green : C.red}
+          sub={`бет €${stats.yearBettingEur.toLocaleString()}`} />
+        <MetricCard label="Покер за месяц" value={fmt(stats.monthPoker)} color={stats.monthPoker >= 0 ? C.green : C.red}
+          sub={`бет €${stats.monthBettingEur.toLocaleString()}`} />
       </div>
 
       {/* Mini equity curve */}
       <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, paddingLeft: 6, paddingRight: 6 }}>
           <div style={{ fontSize: 12, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-            Equity Curve (90 дней)
+            Equity Покер (90 дней)
           </div>
           {recentEquity.length > 1 && (() => {
             const diff = recentEquity[recentEquity.length-1].v - recentEquity[0].v;
@@ -1197,7 +1157,7 @@ function ChartsTab({ stats, chartPeriod, setChartPeriod, customRange, setCustomR
       {/* Equity curve */}
       <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, paddingLeft: 6, paddingRight: 6 }}>
-          <div style={{ fontSize: 13, fontWeight: 500 }}>Equity Curve</div>
+          <div style={{ fontSize: 13, fontWeight: 500 }}>Equity Покер ($)</div>
           {chartPeriod !== "all" && filteredEquity.length > 0 && (() => {
             const start = filteredEquity[0].v;
             const end = filteredEquity[filteredEquity.length - 1].v;
@@ -1241,20 +1201,14 @@ function ChartsTab({ stats, chartPeriod, setChartPeriod, customRange, setCustomR
 
       {/* Monthly results */}
       <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
-        <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, paddingLeft: 6 }}>Результат по месяцам</div>
+        <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, paddingLeft: 6 }}>Покер по месяцам ($)</div>
         <ResponsiveContainer width="100%" height={240}>
           <BarChart data={filteredMonthly} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
             <XAxis dataKey="label" tick={{ fontSize: 10, fill: C.textMuted }} interval={0} angle={-45} textAnchor="end" height={50} />
             <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={50} />
             <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text, }} labelStyle={{ color: C.textDim }} itemStyle={{ color: C.text }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
-              formatter={(v, name, props) => {
-                const d = props.payload;
-                const parts = [`Итого: ${fmt(d.result)}`];
-                if (d.poker !== undefined) parts.push(`Покер: ${fmt(d.poker)}`);
-                if (d.bettingEur) parts.push(`Бет: €${d.bettingEur.toLocaleString()}`);
-                return [parts.join("  ·  "), ""];
-              }} />
+              formatter={(v) => [fmt(v), "Покер"]} />
             <ReferenceLine y={0} stroke={C.textMuted} strokeDasharray="3 3" />
             <Bar dataKey="result" radius={[4,4,0,0]}>
               {filteredMonthly.map((entry, i) => (
@@ -1300,6 +1254,32 @@ function ChartsTab({ stats, chartPeriod, setChartPeriod, customRange, setCustomR
         </ResponsiveContainer>
       </div>
 
+      {/* Betting results (€) */}
+      {stats.bettingEquity.length > 0 && (
+        <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, paddingLeft: 6, paddingRight: 6 }}>
+            <div style={{ fontSize: 13, fontWeight: 500 }}>Беттинг (€)</div>
+            <div style={{ fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.gold }}>
+              Всего: €{stats.totalBettingEur.toLocaleString()} · Банкролл: €{stats.bankrollBettingEur.toLocaleString()}
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={160}>
+            <AreaChart data={stats.bettingEquity} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="d" tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={d => {
+                const m = parseInt(d.slice(5,7))-1;
+                return monthNames[m] + " " + d.slice(2,4);
+              }} />
+              <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={v => `€${v}`} width={50} />
+              <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text }} labelStyle={{ color: C.textDim }}
+                labelFormatter={d => { const m = parseInt(d.slice(5,7))-1; return monthNames[m] + " " + d.slice(0,4); }}
+                formatter={(v) => [`€${v.toLocaleString()}`, "Итого"]} />
+              <Area type="monotone" dataKey="v" stroke={C.gold} fill="rgba(234,179,8,0.15)" strokeWidth={2} dot={{ fill: C.gold, r: 3 }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
       {/* Cashouts */}
       <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
         <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, paddingLeft: 6 }}>
@@ -1330,14 +1310,12 @@ function ChartsTab({ stats, chartPeriod, setChartPeriod, customRange, setCustomR
 }
 
 // ─── BANKROLL TAB ───────────────────────────────────────────────────────────
-function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, totalAll, eurUsd }) {
+function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <MetricCard label="Покер + Беттинг" value={fmtPlain(totalAll)} color={C.green} />
-        <MetricCard label="Банкролл покер" value={fmtPlain(total)} color={C.blue} />
-        <MetricCard label="Банкролл беттинг" value={`€${bettingBankroll.toLocaleString()}`} color={C.gold}
-          sub={`≈ ${fmtPlain(Math.round(bettingBankroll * eurUsd))}`} />
+        <MetricCard label="Банкролл покер" value={fmtPlain(total)} color={C.green} />
+        <MetricCard label="Банкролл беттинг" value={`€${bettingBankroll.toLocaleString()}`} color={C.gold} />
       </div>
 
       {/* Big pie */}
@@ -1361,7 +1339,7 @@ function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, 
         <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>Детализация по румам</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {bankrollPie.map((item, i) => {
-            const pct = totalAll > 0 ? (item.value / totalAll * 100) : 0;
+            const pct = total > 0 ? (item.value / total * 100) : 0;
             return (
               <div key={item.name} style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ width: 10, height: 10, borderRadius: 3, background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
@@ -1567,9 +1545,8 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
             <thead>
               <tr style={{ color: C.textMuted, textAlign: "left" }}>
                 <th style={{ padding: "6px 8px", borderBottom: `1px solid ${C.border}` }}>Год</th>
-                <th style={{ padding: "6px 8px", borderBottom: `1px solid ${C.border}`, textAlign: "right" }}>Итого</th>
-                <th style={{ padding: "6px 8px", borderBottom: `1px solid ${C.border}`, textAlign: "right" }}>Покер</th>
-                <th style={{ padding: "6px 8px", borderBottom: `1px solid ${C.border}`, textAlign: "right" }}>Беттинг</th>
+                <th style={{ padding: "6px 8px", borderBottom: `1px solid ${C.border}`, textAlign: "right" }}>Покер ($)</th>
+                <th style={{ padding: "6px 8px", borderBottom: `1px solid ${C.border}`, textAlign: "right" }}>Бет (€)</th>
                 <th style={{ padding: "6px 8px", borderBottom: `1px solid ${C.border}`, textAlign: "right" }}>Часы</th>
                 <th style={{ padding: "6px 8px", borderBottom: `1px solid ${C.border}`, textAlign: "right" }}>$/ч</th>
               </tr>
@@ -1579,9 +1556,7 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
                 <tr key={y.year}>
                   <td style={{ padding: "8px", borderBottom: `1px solid ${C.border}` }}>{y.year}</td>
                   <td style={{ padding: "8px", borderBottom: `1px solid ${C.border}`, textAlign: "right",
-                    color: y.result >= 0 ? C.green : C.red, fontWeight: 500 }}>{fmt(y.result)}</td>
-                  <td style={{ padding: "8px", borderBottom: `1px solid ${C.border}`, textAlign: "right",
-                    color: y.poker >= 0 ? C.green : C.red }}>{fmt(y.poker)}</td>
+                    color: y.poker >= 0 ? C.green : C.red, fontWeight: 500 }}>{fmt(y.poker)}</td>
                   <td style={{ padding: "8px", borderBottom: `1px solid ${C.border}`, textAlign: "right",
                     color: y.bettingEur ? (y.bettingEur >= 0 ? C.gold : C.red) : C.textMuted }}>
                     {y.bettingEur ? `€${y.bettingEur.toLocaleString()}` : "—"}</td>
@@ -1619,7 +1594,7 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
 
       {/* Yearly bar chart */}
       <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
-        <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, paddingLeft: 6 }}>Результат по годам</div>
+        <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, paddingLeft: 6 }}>Покер по годам ($)</div>
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={yearData} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
@@ -1628,14 +1603,13 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
             <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text, }} labelStyle={{ color: C.textDim }} itemStyle={{ color: C.text }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
               formatter={(v, name, props) => {
                 const d = props.payload;
-                const parts = [`Итого: ${fmt(d.result)}`];
-                if (d.poker !== undefined) parts.push(`Покер: ${fmt(d.poker)}`);
+                const parts = [`Покер: ${fmt(d.poker)}`];
                 if (d.bettingEur) parts.push(`Бет: €${d.bettingEur.toLocaleString()}`);
                 return [parts.join(" · "), ""];
               }} />
-            <Bar dataKey="result" radius={[6,6,0,0]}>
+            <Bar dataKey="poker" radius={[6,6,0,0]}>
               {yearData.map((entry, i) => (
-                <Cell key={i} fill={entry.result >= 0 ? C.green : C.red} fillOpacity={0.8} />
+                <Cell key={i} fill={entry.poker >= 0 ? C.green : C.red} fillOpacity={0.8} />
               ))}
             </Bar>
           </BarChart>

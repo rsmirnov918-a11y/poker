@@ -153,11 +153,17 @@ function PokerDashboard() {
       if (doc.exists) {
         const d = doc.data();
         if (d.bankroll) setBankroll(d.bankroll);
-        if (d.bettingBR !== undefined) setBettingBR(d.bettingBR);
         if (d.eurUsd) setEurUsd(d.eurUsd);
         if (d.newSessions) setNewSessions(d.newSessions);
-        if (d.newBettingEntries) setNewBettingEntries(d.newBettingEntries);
         if (d.newCashouts) setNewCashouts(d.newCashouts);
+        // One-time migration: reset betting to EUR system
+        if (!d.bettingV2) {
+          setBettingBR(5656);
+          setNewBettingEntries([]);
+        } else {
+          if (d.bettingBR !== undefined) setBettingBR(d.bettingBR);
+          if (d.newBettingEntries) setNewBettingEntries(d.newBettingEntries);
+        }
       }
       setLoaded(true);
     }).catch(e => {
@@ -175,7 +181,7 @@ function PokerDashboard() {
     saveRef.current = setTimeout(() => {
       DOC_REF.set({
         bankroll, bettingBR, eurUsd, newSessions, newBettingEntries, newCashouts,
-        updatedAt: new Date().toISOString()
+        bettingV2: true, updatedAt: new Date().toISOString()
       }).then(() => {
         setSaveStatus("ok");
       }).catch(e => {
@@ -200,7 +206,7 @@ function PokerDashboard() {
 
   // JSON import/export as backup
   const exportJSON = useCallback(() => {
-    const data = { bankroll, bettingBR, eurUsd, newSessions, newBettingEntries, newCashouts, exportDate: new Date().toISOString() };
+    const data = { bankroll, bettingBR, eurUsd, newSessions, newBettingEntries, newCashouts, bettingV2: true, exportDate: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -218,11 +224,16 @@ function PokerDashboard() {
       try {
         const data = JSON.parse(ev.target.result);
         if (data.bankroll) setBankroll(data.bankroll);
-        if (data.bettingBR !== undefined) setBettingBR(data.bettingBR);
         if (data.eurUsd) setEurUsd(data.eurUsd);
         if (data.newSessions) setNewSessions(data.newSessions);
-        if (data.newBettingEntries) setNewBettingEntries(data.newBettingEntries);
         if (data.newCashouts) setNewCashouts(data.newCashouts);
+        if (data.bettingV2) {
+          if (data.bettingBR !== undefined) setBettingBR(data.bettingBR);
+          if (data.newBettingEntries) setNewBettingEntries(data.newBettingEntries);
+        } else {
+          setBettingBR(5656);
+          setNewBettingEntries([]);
+        }
       } catch(err) {}
     };
     reader.readAsText(file);

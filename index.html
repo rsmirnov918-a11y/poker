@@ -635,7 +635,17 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
     const newBR = {};
     rooms.forEach(r => { newBR[r] = parseFloat(roomValues[r]) || 0; });
     const session = { d: date, r: Math.round(sessionResult), h: parseFloat(hours) };
-    saveNewSessions([...newSessions, session]);
+    // Merge if same date exists
+    const existingIdx = newSessions.findIndex(s => s.d === date);
+    let updated;
+    if (existingIdx >= 0) {
+      updated = newSessions.map((s, i) => i === existingIdx
+        ? { d: s.d, r: s.r + session.r, h: Math.round((s.h + session.h) * 100) / 100 }
+        : s);
+    } else {
+      updated = [...newSessions, session];
+    }
+    saveNewSessions(updated);
     saveBankroll(newBR);
     setHours("");
     setSaved("session");
@@ -656,8 +666,8 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
     setTimeout(() => setSaved(null), 2000);
   };
 
-  const deleteSession = (idx) => {
-    const updated = newSessions.filter((_, i) => i !== idx);
+  const deleteSession = () => {
+    const updated = newSessions.slice(0, -1);
     saveNewSessions(updated);
   };
 
@@ -998,6 +1008,7 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {[...newSessions].reverse().map((s, i) => {
               const realIdx = newSessions.length - 1 - i;
+              const isLast = i === 0;
               return (
                 <div key={realIdx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
                   padding: "8px 10px", background: "#0f1923", borderRadius: 6 }}>
@@ -1005,10 +1016,12 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
                   <div style={{ fontSize: 12, color: C.textDim }}>{s.h}ч</div>
                   <div style={{ fontSize: 13, fontFamily: "'JetBrains Mono'", fontWeight: 500,
                     color: s.r >= 0 ? C.green : C.red }}>{fmt(s.r)}</div>
-                  <button onClick={() => deleteSession(realIdx)} style={{
-                    background: "transparent", border: `1px solid ${C.border}`, borderRadius: 4,
-                    color: C.red, cursor: "pointer", padding: "2px 8px", fontSize: 11,
-                  }}>✕</button>
+                  {isLast ? (
+                    <button onClick={() => deleteSession()} style={{
+                      background: "transparent", border: `1px solid ${C.border}`, borderRadius: 4,
+                      color: C.red, cursor: "pointer", padding: "2px 8px", fontSize: 11,
+                    }}>✕</button>
+                  ) : <div style={{ width: 30 }} />}
                 </div>
               );
             })}

@@ -532,9 +532,9 @@ function PokerDashboard() {
         </div>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", textAlign: "right" }}>
           <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.1em" }}>Банкролл</div>
-          <div style={{ fontSize: 20, fontWeight: 600, color: C.green }}>{fmtPlain(stats.bankrollPoker)}</div>
+          <div style={{ fontSize: 20, fontWeight: 600, color: C.green }}>{fmtPlain(stats.bankrollPoker + Math.round(bettingBR * eurUsd))}</div>
           <div style={{ fontSize: 11, color: C.textDim }}>
-            покер · беттинг <span style={{ color: C.gold }}>€{bettingBR.toLocaleString()}</span>
+            покер {fmtPlain(stats.bankrollPoker)} · беттинг <span style={{ color: C.gold }}>€{bettingBR.toLocaleString()}</span>
             {<span style={{ marginLeft: 6, color: saveStatus === "ok" ? C.green : saveStatus === "saving" ? C.gold : C.red }}>{saveStatus === "ok" ? "● синхр" : saveStatus === "saving" ? "● ..." : "● ошибка"}</span>}
           </div>
           <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
@@ -587,7 +587,7 @@ function PokerDashboard() {
           customRange={customRange} setCustomRange={setCustomRange}
           filteredEquity={filteredEquity} filteredMonthly={filteredMonthly} cashouts={allCashouts} />}
         {tab === "bankroll" && <BankrollTab bankroll={bankroll} bankrollPie={bankrollPie} total={stats.bankrollPoker}
-          cashouts={allCashouts} bettingBankroll={bettingBR} />}
+          cashouts={allCashouts} bettingBankroll={bettingBR} eurUsd={eurUsd} />}
         {tab === "stats" && <StatsTab stats={stats} sessions={dailySessions} statsPeriod={statsPeriod} setStatsPeriod={setStatsPeriod}
           customRange={customRange} setCustomRange={setCustomRange} cashouts={allCashouts} />}
       </div>
@@ -1310,12 +1310,16 @@ function ChartsTab({ stats, chartPeriod, setChartPeriod, customRange, setCustomR
 }
 
 // ─── BANKROLL TAB ───────────────────────────────────────────────────────────
-function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll }) {
+function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, eurUsd }) {
+  const totalAll = total + Math.round(bettingBankroll * eurUsd);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <MetricCard label="Банкролл покер" value={fmtPlain(total)} color={C.green} />
-        <MetricCard label="Банкролл беттинг" value={`€${bettingBankroll.toLocaleString()}`} color={C.gold} />
+        <MetricCard label="Всего (по курсу)" value={fmtPlain(totalAll)} color={C.green}
+          sub={`€/$ ${eurUsd}`} />
+        <MetricCard label="Банкролл покер" value={fmtPlain(total)} color={C.blue} />
+        <MetricCard label="Банкролл беттинг" value={`€${bettingBankroll.toLocaleString()}`} color={C.gold}
+          sub={`≈ ${fmtPlain(Math.round(bettingBankroll * eurUsd))}`} />
       </div>
 
       {/* Big pie */}

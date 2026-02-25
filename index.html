@@ -455,11 +455,14 @@ function PokerDashboard() {
 
   // Bankroll pie data (including betting)
   const bankrollPie = useMemo(() => {
-    return Object.entries(bankroll)
+    const entries = Object.entries(bankroll)
       .filter(([,v]) => v > 0)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a,b) => b.value - a.value);
-  }, [bankroll]);
+      .map(([name, value]) => ({ name, value }));
+    if (bettingBR > 0) {
+      entries.push({ name: "Беттинг", value: Math.round(bettingBR * eurUsd) });
+    }
+    return entries.sort((a,b) => b.value - a.value);
+  }, [bankroll, bettingBR, eurUsd]);
 
   const tabs = [
     { id: "dash", label: "\u0414\u0430\u0448\u0431\u043e\u0440\u0434", icon: "\u25a6" },
@@ -688,8 +691,8 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
     setTimeout(() => setSaved(null), 2000);
   };
 
-  const deleteCashout = (idx) => {
-    const updated = newCashouts.filter((_, i) => i !== idx);
+  const deleteCashout = () => {
+    const updated = newCashouts.slice(0, -1);
     saveNewCashouts(updated);
   };
 
@@ -866,10 +869,12 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
                     fontFamily: "'JetBrains Mono'", marginBottom: 3 }}>
                     <span style={{ color: C.textDim }}>{c.d}</span>
                     <span style={{ color: C.purple }}>{fmtPlain(c.v)}</span>
-                    <button onClick={() => deleteCashout(i)} style={{
-                      background: "transparent", border: `1px solid ${C.border}`, borderRadius: 4,
-                      color: C.red, cursor: "pointer", padding: "2px 8px", fontSize: 11,
-                    }}>✕</button>
+                    {i === newCashouts.length - 1 && (
+                      <button onClick={deleteCashout} style={{
+                        background: "transparent", border: `1px solid ${C.border}`, borderRadius: 4,
+                        color: C.red, cursor: "pointer", padding: "2px 8px", fontSize: 11,
+                      }}>✕</button>
+                    )}
                   </div>
                 ))}
               </div>

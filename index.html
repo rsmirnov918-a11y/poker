@@ -590,7 +590,8 @@ function PokerDashboard() {
           customRange={customRange} setCustomRange={setCustomRange}
           filteredEquity={filteredEquity} filteredMonthly={filteredMonthly} cashouts={allCashouts} />}
         {tab === "bankroll" && <BankrollTab bankroll={bankroll} bankrollPie={bankrollPie} total={stats.bankrollPoker}
-          cashouts={allCashouts} bettingBankroll={bettingBR} eurUsd={eurUsd} />}
+          cashouts={allCashouts} bettingBankroll={bettingBR} eurUsd={eurUsd}
+          sessions={dailySessions} betting={allBetting} />}
         {tab === "stats" && <StatsTab stats={stats} sessions={dailySessions} statsPeriod={statsPeriod} setStatsPeriod={setStatsPeriod}
           customRange={customRange} setCustomRange={setCustomRange} cashouts={allCashouts} />}
       </div>
@@ -615,9 +616,6 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
   const [cashoutSource, setCashoutSource] = useState("888");
   const [saved, setSaved] = useState(null);
   const [mode, setMode] = useState("session");
-  const [transferDir, setTransferDir] = useState("poker2bet"); // or "bet2poker"
-  const [transferAmount, setTransferAmount] = useState("");
-  const [transferRoom, setTransferRoom] = useState("888");
 
   const rooms = ["888","IPoker","WPN","SB","CoinPoker","\u0411\u0430\u043d\u043a","USDT","Cash"];
 
@@ -627,31 +625,6 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
 
   const handleRoomChange = (room, val) => {
     setRoomValues(prev => ({ ...prev, [room]: val }));
-  };
-
-  const submitTransfer = () => {
-    const amountUsd = parseFloat(transferAmount);
-    if (isNaN(amountUsd) || amountUsd <= 0) return;
-    const amountEur = Math.round(amountUsd / eurUsd);
-    const newBR = { ...bankroll };
-
-    if (transferDir === "poker2bet") {
-      // Take USD from poker room, add EUR to betting
-      newBR[transferRoom] = (newBR[transferRoom] || 0) - amountUsd;
-      saveBankroll(newBR);
-      saveBettingBR(bettingBR + amountEur);
-      setBetBankrollEur(String(bettingBR + amountEur));
-    } else {
-      // Take EUR from betting, add USD to poker room
-      newBR[transferRoom] = (newBR[transferRoom] || 0) + amountUsd;
-      saveBankroll(newBR);
-      saveBettingBR(bettingBR - amountEur);
-      setBetBankrollEur(String(bettingBR - amountEur));
-    }
-    setRoomValues(newBR);
-    setTransferAmount("");
-    setSaved("transfer");
-    setTimeout(() => setSaved(null), 2000);
   };
 
   const submitSession = () => {
@@ -745,9 +718,6 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
         </button>
         <button onClick={() => setMode("cashout")} style={btnStyle(mode === "cashout")}>
           Кэшаут
-        </button>
-        <button onClick={() => setMode("transfer")} style={btnStyle(mode === "transfer")}>
-          Перевод
         </button>
         <button onClick={() => setMode("betting")} style={btnStyle(mode === "betting")}>
           Беттинг
@@ -911,82 +881,6 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
               </div>
             )}
           </div>
-        </div>
-      )}
-
-      {mode === "transfer" && (
-        <div style={{ background: C.card, borderRadius: 12, padding: 20, border: `1px solid ${C.border}` }}>
-          <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>Перевод между покером и беттингом</div>
-
-          {/* Direction */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-            <button onClick={() => setTransferDir("poker2bet")} style={{
-              flex: 1, padding: "10px", border: `1px solid ${transferDir === "poker2bet" ? C.gold : C.border}`,
-              borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontSize: 12,
-              background: transferDir === "poker2bet" ? "rgba(234,179,8,0.1)" : "transparent",
-              color: transferDir === "poker2bet" ? C.gold : C.textDim,
-            }}>Покер → Беттинг</button>
-            <button onClick={() => setTransferDir("bet2poker")} style={{
-              flex: 1, padding: "10px", border: `1px solid ${transferDir === "bet2poker" ? C.green : C.border}`,
-              borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontSize: 12,
-              background: transferDir === "bet2poker" ? "rgba(34,197,94,0.1)" : "transparent",
-              color: transferDir === "bet2poker" ? C.green : C.textDim,
-            }}>Беттинг → Покер</button>
-          </div>
-
-          {/* Room + Amount */}
-          <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>
-                {transferDir === "poker2bet" ? "ОТКУДА (рум)" : "КУДА (рум)"}
-              </div>
-              <select value={transferRoom} onChange={e => setTransferRoom(e.target.value)}
-                style={{ ...inputStyle, cursor: "pointer" }}>
-                {rooms.map(r => <option key={r} value={r}>{r} (${(bankroll[r]||0).toLocaleString()})</option>)}
-              </select>
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>СУММА ($)</div>
-              <input type="number" placeholder="500" value={transferAmount}
-                onChange={e => setTransferAmount(e.target.value)} style={inputStyle} />
-            </div>
-          </div>
-
-          {/* Preview */}
-          {transferAmount && parseFloat(transferAmount) > 0 && (() => {
-            const usd = parseFloat(transferAmount);
-            const eur = Math.round(usd / eurUsd);
-            return (
-              <div style={{ background: "#0f1923", borderRadius: 8, padding: 14, marginBottom: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ fontSize: 12, color: C.textDim }}>
-                    {transferDir === "poker2bet"
-                      ? `${transferRoom}: ${fmtPlain(bankroll[transferRoom]||0)} → ${fmtPlain((bankroll[transferRoom]||0) - usd)}`
-                      : `${transferRoom}: ${fmtPlain(bankroll[transferRoom]||0)} → ${fmtPlain((bankroll[transferRoom]||0) + usd)}`}
-                  </div>
-                  <div style={{ fontSize: 12, color: C.textDim }}>
-                    {transferDir === "poker2bet"
-                      ? `Бет: €${bettingBR.toLocaleString()} → €${(bettingBR + eur).toLocaleString()}`
-                      : `Бет: €${bettingBR.toLocaleString()} → €${(bettingBR - eur).toLocaleString()}`}
-                  </div>
-                </div>
-                <div style={{ textAlign: "center", marginTop: 10, fontSize: 18, fontWeight: 600, fontFamily: "'JetBrains Mono'", color: C.gold }}>
-                  ${usd.toLocaleString()} = €{eur.toLocaleString()}
-                  <span style={{ fontSize: 11, color: C.textMuted, marginLeft: 8 }}>по курсу {eurUsd}</span>
-                </div>
-              </div>
-            );
-          })()}
-
-          <button onClick={submitTransfer} style={{
-            width: "100%", padding: "12px", border: "none", borderRadius: 8, cursor: "pointer",
-            background: `linear-gradient(135deg, ${C.gold}, #f97316)`, color: "#fff",
-            fontSize: 14, fontWeight: 600, fontFamily: "inherit",
-            opacity: transferAmount && parseFloat(transferAmount) > 0 ? 1 : 0.4,
-            pointerEvents: transferAmount && parseFloat(transferAmount) > 0 ? "auto" : "none",
-          }}>
-            {saved === "transfer" ? "\u2713 Переведено!" : "Перевести"}
-          </button>
         </div>
       )}
 
@@ -1422,8 +1316,75 @@ function ChartsTab({ stats, chartPeriod, setChartPeriod, customRange, setCustomR
 }
 
 // ─── BANKROLL TAB ───────────────────────────────────────────────────────────
-function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, eurUsd }) {
+function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, eurUsd, sessions, betting }) {
   const totalAll = total + Math.round(bettingBankroll * eurUsd);
+
+  // Build bankroll history from first cashout date
+  const bankrollHistory = useMemo(() => {
+    if (!cashouts.length) return [];
+    const CASHOUT_START = cashouts[0]?.d || "2024-04-04";
+
+    // Filter events from cashout start
+    const sessAfter = sessions.filter(s => s.d >= CASHOUT_START);
+    const cashAfter = cashouts.filter(c => c.d >= CASHOUT_START);
+    const betAfter = betting.filter(b => b.d >= CASHOUT_START);
+
+    // Reconstruct poker bankroll at start
+    const sessSum = sessAfter.reduce((s, x) => s + x.r, 0);
+    const cashSum = cashAfter.reduce((s, x) => s + x.v, 0);
+    const pokerStart = total - sessSum + cashSum;
+
+    // Reconstruct betting bankroll at start (EUR)
+    const betSum = betAfter.reduce((s, x) => s + x.v, 0);
+    const betStart = bettingBankroll - betSum;
+
+    // Merge all events sorted by date
+    const events = [];
+    sessAfter.forEach(s => events.push({ d: s.d, poker: s.r, cash: 0, bet: 0 }));
+    cashAfter.forEach(c => events.push({ d: c.d, poker: 0, cash: -c.v, bet: 0 }));
+    betAfter.forEach(b => events.push({ d: b.d, poker: 0, cash: 0, bet: b.v }));
+    events.sort((a, b) => a.d.localeCompare(b.d));
+
+    // Build running balances, aggregate by date
+    let runPoker = pokerStart;
+    let runBet = betStart;
+    const byDate = {};
+
+    events.forEach(e => {
+      runPoker += e.poker + e.cash;
+      runBet += e.bet;
+      byDate[e.d] = { poker: Math.round(runPoker), bet: Math.round(runBet) };
+    });
+
+    // Convert to array, show betting only from first betting entry
+    const firstBetDate = betAfter.length > 0 ? betAfter[0].d : null;
+    return Object.entries(byDate)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([d, v]) => ({
+        d,
+        poker: v.poker,
+        bet: firstBetDate && d >= firstBetDate ? v.bet : null,
+      }));
+  }, [sessions, cashouts, betting, total, bettingBankroll]);
+
+  // Aggregate by month for cleaner chart
+  const bankrollMonthly = useMemo(() => {
+    if (!bankrollHistory.length) return [];
+    const byMonth = {};
+    bankrollHistory.forEach(p => {
+      const ym = p.d.slice(0, 7);
+      byMonth[ym] = { poker: p.poker, bet: p.bet };
+    });
+    return Object.entries(byMonth)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([ym, v]) => ({
+        d: ym,
+        label: monthNames[parseInt(ym.slice(5,7))-1] + " " + ym.slice(2,4),
+        poker: v.poker,
+        bet: v.bet,
+      }));
+  }, [bankrollHistory]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -1433,6 +1394,32 @@ function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, 
         <MetricCard label="Банкролл беттинг" value={`€${bettingBankroll.toLocaleString()}`} color={C.gold}
           sub={`≈ ${fmtPlain(Math.round(bettingBankroll * eurUsd))}`} />
       </div>
+
+      {/* Bankroll history chart */}
+      {bankrollMonthly.length > 1 && (
+        <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, paddingLeft: 6 }}>
+            История банкролла (с апр 2024)
+          </div>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={bankrollMonthly} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="label" tick={{ fontSize: 9, fill: C.textMuted }} interval="preserveStartEnd" />
+              <YAxis yAxisId="usd" tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={50} />
+              <YAxis yAxisId="eur" orientation="right" tick={{ fontSize: 10, fill: C.gold }} tickFormatter={v => `€${(v/1000).toFixed(0)}k`} width={45} />
+              <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text }}
+                labelStyle={{ color: C.textDim }}
+                formatter={(v, name) => {
+                  if (v === null) return [null, null];
+                  if (name === "poker") return [fmtPlain(v), "Покер ($)"];
+                  return [`€${v.toLocaleString()}`, "Беттинг (€)"];
+                }} />
+              <Line yAxisId="usd" type="monotone" dataKey="poker" stroke={C.blue} strokeWidth={2} dot={false} name="poker" />
+              <Line yAxisId="eur" type="monotone" dataKey="bet" stroke={C.gold} strokeWidth={2} dot={false} name="bet" connectNulls={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Big pie */}
       <div style={{ background: C.card, borderRadius: 12, padding: 20, border: `1px solid ${C.border}` }}>
@@ -1455,11 +1442,11 @@ function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, 
         <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>Детализация по румам</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {bankrollPie.map((item, i) => {
-            const pct = total > 0 ? (item.value / total * 100) : 0;
+            const pct = totalAll > 0 ? (item.value / totalAll * 100) : 0;
             return (
               <div key={item.name} style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ width: 10, height: 10, borderRadius: 3, background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
-                <div style={{ flex: 1, fontSize: 13, color: C.text, }} labelStyle={{ color: C.textDim }} itemStyle={{ color: C.text }} cursor={{ fill: "rgba(255,255,255,0.05)" }}>{item.name}</div>
+                <div style={{ flex: 1, fontSize: 13, color: C.text }}>{item.name}</div>
                 <div style={{ fontSize: 13, fontFamily: "'JetBrains Mono'", fontWeight: 500 }}>{fmtPlain(item.value)}</div>
                 <div style={{
                   width: 80, height: 6, background: C.border, borderRadius: 3, overflow: "hidden"
@@ -1486,25 +1473,24 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
   const dateInputStyle = { background: "#0f1923", border: `1px solid ${C.border}`, borderRadius: 6,
     padding: "4px 8px", color: C.text, fontSize: 11, fontFamily: "'JetBrains Mono'" };
 
+  // Compute period date range
+  const periodRange = useMemo(() => {
+    if (statsPeriod === "all") return { from: "2000-01-01", to: TODAY };
+    if (statsPeriod === "custom") return { from: customRange.from || "2000-01-01", to: customRange.to || TODAY };
+    const now = new Date();
+    let cutoff;
+    if (statsPeriod === "3y") cutoff = new Date(now.getFullYear()-3, now.getMonth(), now.getDate());
+    else if (statsPeriod === "1y") cutoff = new Date(now.getFullYear()-1, now.getMonth(), now.getDate());
+    else if (statsPeriod === "6m") cutoff = new Date(now.getFullYear(), now.getMonth()-6, now.getDate());
+    else cutoff = new Date(now.getFullYear(), now.getMonth()-3, now.getDate());
+    return { from: cutoff.toISOString().slice(0,10), to: TODAY };
+  }, [statsPeriod, customRange]);
+
   // Filter sessions by period
   const filtered = useMemo(() => {
     if (statsPeriod === "all") return sessions;
-    let fromStr, toStr;
-    if (statsPeriod === "custom") {
-      fromStr = customRange.from || "2000-01-01";
-      toStr = customRange.to || TODAY;
-    } else {
-      const now = new Date();
-      let cutoff;
-      if (statsPeriod === "3y") cutoff = new Date(now.getFullYear()-3, now.getMonth(), now.getDate());
-      else if (statsPeriod === "1y") cutoff = new Date(now.getFullYear()-1, now.getMonth(), now.getDate());
-      else if (statsPeriod === "6m") cutoff = new Date(now.getFullYear(), now.getMonth()-6, now.getDate());
-      else cutoff = new Date(now.getFullYear(), now.getMonth()-3, now.getDate());
-      fromStr = cutoff.toISOString().slice(0,10);
-      toStr = TODAY;
-    }
-    return sessions.filter(s => s.d >= fromStr && s.d <= toStr);
-  }, [sessions, statsPeriod, customRange]);
+    return sessions.filter(s => s.d >= periodRange.from && s.d <= periodRange.to);
+  }, [sessions, statsPeriod, periodRange]);
 
   // Filtered stats
   const fStats = useMemo(() => {
@@ -1589,14 +1575,21 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
 
   // Cashout stats - count months from April 2024
   const cashoutStats = useMemo(() => {
-    const totalCashout = cashouts.reduce((s, c) => s + c.v, 0);
-    // Months since April 2024
-    const startDate = new Date(2024, 3, 1); // April 2024
-    const now = new Date();
-    const monthsSinceStart = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth()) + 1;
-    const avgPerMonth = monthsSinceStart > 0 ? totalCashout / monthsSinceStart : 0;
-    return { total: totalCashout, avgPerMonth, count: cashouts.length, months: monthsSinceStart };
-  }, [cashouts]);
+    const CASHOUT_START = "2024-04-04";
+    // Effective range: intersect period with cashout availability
+    const effectiveFrom = periodRange.from > CASHOUT_START ? periodRange.from : CASHOUT_START;
+    const effectiveTo = periodRange.to;
+    const filteredCashouts = cashouts.filter(c => c.d >= effectiveFrom && c.d <= effectiveTo);
+    const totalCashout = filteredCashouts.reduce((s, c) => s + c.v, 0);
+
+    // Months in effective range
+    const from = new Date(effectiveFrom);
+    const to = new Date(effectiveTo);
+    const monthsInRange = Math.max(1, (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()) + 1);
+    const avgPerMonth = monthsInRange > 0 ? totalCashout / monthsInRange : 0;
+    const partial = periodRange.from < CASHOUT_START;
+    return { total: totalCashout, avgPerMonth, count: filteredCashouts.length, months: monthsInRange, partial };
+  }, [cashouts, periodRange]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1628,7 +1621,7 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
         <MetricCard small label="Серия W" value={`${streaks.maxWin} дн`} color={C.green} />
         <MetricCard small label="Серия L" value={`${streaks.maxLoss} дн`} color={C.red} />
         <MetricCard small label="Кэшаут" value={fmtPlain(cashoutStats.total)} color={C.purple}
-          sub={`~${fmtPlain(Math.round(cashoutStats.avgPerMonth))}/мес (${cashoutStats.months} мес)`} />
+          sub={`~${fmtPlain(Math.round(cashoutStats.avgPerMonth))}/мес · ${cashoutStats.count} шт${cashoutStats.partial ? " · с апр 2024" : ""}`} />
       </div>
 
       {/* Hours block */}

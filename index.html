@@ -615,6 +615,9 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
   const [cashoutSource, setCashoutSource] = useState("888");
   const [saved, setSaved] = useState(null);
   const [mode, setMode] = useState("session");
+  const [transferDir, setTransferDir] = useState("poker2bet"); // or "bet2poker"
+  const [transferAmount, setTransferAmount] = useState("");
+  const [transferRoom, setTransferRoom] = useState("888");
 
   const rooms = ["888","IPoker","WPN","SB","CoinPoker","\u0411\u0430\u043d\u043a","USDT","Cash"];
 
@@ -624,6 +627,31 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
 
   const handleRoomChange = (room, val) => {
     setRoomValues(prev => ({ ...prev, [room]: val }));
+  };
+
+  const submitTransfer = () => {
+    const amountUsd = parseFloat(transferAmount);
+    if (isNaN(amountUsd) || amountUsd <= 0) return;
+    const amountEur = Math.round(amountUsd / eurUsd);
+    const newBR = { ...bankroll };
+
+    if (transferDir === "poker2bet") {
+      // Take USD from poker room, add EUR to betting
+      newBR[transferRoom] = (newBR[transferRoom] || 0) - amountUsd;
+      saveBankroll(newBR);
+      saveBettingBR(bettingBR + amountEur);
+      setBetBankrollEur(String(bettingBR + amountEur));
+    } else {
+      // Take EUR from betting, add USD to poker room
+      newBR[transferRoom] = (newBR[transferRoom] || 0) + amountUsd;
+      saveBankroll(newBR);
+      saveBettingBR(bettingBR - amountEur);
+      setBetBankrollEur(String(bettingBR - amountEur));
+    }
+    setRoomValues(newBR);
+    setTransferAmount("");
+    setSaved("transfer");
+    setTimeout(() => setSaved(null), 2000);
   };
 
   const submitSession = () => {
@@ -643,9 +671,6 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
     }
     saveNewSessions(updated);
     saveBankroll(newBR);
-    // Save betting bankroll if changed
-    const newBetBR = parseFloat(betBankrollEur);
-    if (!isNaN(newBetBR) && newBetBR !== bettingBR) saveBettingBR(newBetBR);
     setHours("");
     setSaved("session");
     setTimeout(() => setSaved(null), 2000);
@@ -721,6 +746,9 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
         <button onClick={() => setMode("cashout")} style={btnStyle(mode === "cashout")}>
           Кэшаут
         </button>
+        <button onClick={() => setMode("transfer")} style={btnStyle(mode === "transfer")}>
+          Перевод
+        </button>
         <button onClick={() => setMode("betting")} style={btnStyle(mode === "betting")}>
           Беттинг
         </button>
@@ -754,12 +782,6 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
                   style={{ ...inputStyle, fontSize: 13, padding: "8px 10px" }} />
               </div>
             ))}
-            <div>
-              <div style={{ fontSize: 11, color: C.gold, marginBottom: 2 }}>Беттинг (€)</div>
-              <input type="number" value={betBankrollEur}
-                onChange={e => setBetBankrollEur(e.target.value)}
-                style={{ ...inputStyle, fontSize: 13, padding: "8px 10px", borderColor: C.gold }} />
-            </div>
           </div>
 
           {/* Result preview */}
@@ -889,6 +911,82 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {mode === "transfer" && (
+        <div style={{ background: C.card, borderRadius: 12, padding: 20, border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>Перевод между покером и беттингом</div>
+
+          {/* Direction */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+            <button onClick={() => setTransferDir("poker2bet")} style={{
+              flex: 1, padding: "10px", border: `1px solid ${transferDir === "poker2bet" ? C.gold : C.border}`,
+              borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontSize: 12,
+              background: transferDir === "poker2bet" ? "rgba(234,179,8,0.1)" : "transparent",
+              color: transferDir === "poker2bet" ? C.gold : C.textDim,
+            }}>Покер → Беттинг</button>
+            <button onClick={() => setTransferDir("bet2poker")} style={{
+              flex: 1, padding: "10px", border: `1px solid ${transferDir === "bet2poker" ? C.green : C.border}`,
+              borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontSize: 12,
+              background: transferDir === "bet2poker" ? "rgba(34,197,94,0.1)" : "transparent",
+              color: transferDir === "bet2poker" ? C.green : C.textDim,
+            }}>Беттинг → Покер</button>
+          </div>
+
+          {/* Room + Amount */}
+          <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>
+                {transferDir === "poker2bet" ? "ОТКУДА (рум)" : "КУДА (рум)"}
+              </div>
+              <select value={transferRoom} onChange={e => setTransferRoom(e.target.value)}
+                style={{ ...inputStyle, cursor: "pointer" }}>
+                {rooms.map(r => <option key={r} value={r}>{r} (${(bankroll[r]||0).toLocaleString()})</option>)}
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>СУММА ($)</div>
+              <input type="number" placeholder="500" value={transferAmount}
+                onChange={e => setTransferAmount(e.target.value)} style={inputStyle} />
+            </div>
+          </div>
+
+          {/* Preview */}
+          {transferAmount && parseFloat(transferAmount) > 0 && (() => {
+            const usd = parseFloat(transferAmount);
+            const eur = Math.round(usd / eurUsd);
+            return (
+              <div style={{ background: "#0f1923", borderRadius: 8, padding: 14, marginBottom: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontSize: 12, color: C.textDim }}>
+                    {transferDir === "poker2bet"
+                      ? `${transferRoom}: ${fmtPlain(bankroll[transferRoom]||0)} → ${fmtPlain((bankroll[transferRoom]||0) - usd)}`
+                      : `${transferRoom}: ${fmtPlain(bankroll[transferRoom]||0)} → ${fmtPlain((bankroll[transferRoom]||0) + usd)}`}
+                  </div>
+                  <div style={{ fontSize: 12, color: C.textDim }}>
+                    {transferDir === "poker2bet"
+                      ? `Бет: €${bettingBR.toLocaleString()} → €${(bettingBR + eur).toLocaleString()}`
+                      : `Бет: €${bettingBR.toLocaleString()} → €${(bettingBR - eur).toLocaleString()}`}
+                  </div>
+                </div>
+                <div style={{ textAlign: "center", marginTop: 10, fontSize: 18, fontWeight: 600, fontFamily: "'JetBrains Mono'", color: C.gold }}>
+                  ${usd.toLocaleString()} = €{eur.toLocaleString()}
+                  <span style={{ fontSize: 11, color: C.textMuted, marginLeft: 8 }}>по курсу {eurUsd}</span>
+                </div>
+              </div>
+            );
+          })()}
+
+          <button onClick={submitTransfer} style={{
+            width: "100%", padding: "12px", border: "none", borderRadius: 8, cursor: "pointer",
+            background: `linear-gradient(135deg, ${C.gold}, #f97316)`, color: "#fff",
+            fontSize: 14, fontWeight: 600, fontFamily: "inherit",
+            opacity: transferAmount && parseFloat(transferAmount) > 0 ? 1 : 0.4,
+            pointerEvents: transferAmount && parseFloat(transferAmount) > 0 ? "auto" : "none",
+          }}>
+            {saved === "transfer" ? "\u2713 Переведено!" : "Перевести"}
+          </button>
         </div>
       )}
 

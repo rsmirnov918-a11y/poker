@@ -590,8 +590,7 @@ function PokerDashboard() {
           customRange={customRange} setCustomRange={setCustomRange}
           filteredEquity={filteredEquity} filteredMonthly={filteredMonthly} cashouts={allCashouts} />}
         {tab === "bankroll" && <BankrollTab bankroll={bankroll} bankrollPie={bankrollPie} total={stats.bankrollPoker}
-          cashouts={allCashouts} bettingBankroll={bettingBR} eurUsd={eurUsd}
-          sessions={dailySessions} betting={allBetting} />}
+          cashouts={allCashouts} bettingBankroll={bettingBR} eurUsd={eurUsd} />}
         {tab === "stats" && <StatsTab stats={stats} sessions={dailySessions} statsPeriod={statsPeriod} setStatsPeriod={setStatsPeriod}
           customRange={customRange} setCustomRange={setCustomRange} cashouts={allCashouts} />}
       </div>
@@ -1423,57 +1422,8 @@ function ChartsTab({ stats, chartPeriod, setChartPeriod, customRange, setCustomR
 }
 
 // ─── BANKROLL TAB ───────────────────────────────────────────────────────────
-function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, eurUsd, sessions, betting }) {
+function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, eurUsd }) {
   const totalAll = total + Math.round(bettingBankroll * eurUsd);
-
-  // Build end-of-month bankroll snapshots
-  const bankrollMonthly = useMemo(() => {
-    const POKER_START_YM = "2024-04"; // first month with cashout tracking
-    const BET_START_YM = "2025-12";   // first month with betting data
-
-    // Sessions & cashouts from poker start
-    const sessFrom = sessions.filter(s => s.d >= POKER_START_YM);
-    const cashFrom = cashouts.filter(c => c.d >= POKER_START_YM);
-    const betFrom = betting.filter(b => b.d >= BET_START_YM);
-
-    // Poker bankroll BEFORE April 2024 = current - all_sessions_since + all_cashouts_since
-    const pokerBefore = total - sessFrom.reduce((s,x) => s+x.r, 0) + cashFrom.reduce((s,x) => s+x.v, 0);
-    // Betting bankroll BEFORE Dec 2025 = current - all_betting_since
-    const betBefore = bettingBankroll - betFrom.reduce((s,x) => s+x.v, 0);
-
-    // Group events by YYYY-MM
-    const monthSess = {}, monthCash = {}, monthBet = {};
-    sessFrom.forEach(s => { const ym = s.d.slice(0,7); monthSess[ym] = (monthSess[ym]||0) + s.r; });
-    cashFrom.forEach(c => { const ym = c.d.slice(0,7); monthCash[ym] = (monthCash[ym]||0) + c.v; });
-    betFrom.forEach(b => { const ym = b.d.slice(0,7); monthBet[ym] = (monthBet[ym]||0) + b.v; });
-
-    // Generate month list from April 2024 to current
-    const months = [];
-    const now = new Date();
-    let y = 2024, m = 3; // April = month 3 (0-indexed)
-    while (y < now.getFullYear() || (y === now.getFullYear() && m <= now.getMonth())) {
-      const ym = `${y}-${String(m+1).padStart(2,"0")}`;
-      months.push(ym);
-      m++;
-      if (m > 11) { m = 0; y++; }
-    }
-
-    // Walk forward, accumulate
-    let runPoker = pokerBefore;
-    let runBet = betBefore;
-    return months.map(ym => {
-      runPoker += (monthSess[ym] || 0) - (monthCash[ym] || 0);
-      runBet += (monthBet[ym] || 0);
-      const label = monthNames[parseInt(ym.slice(5,7))-1] + " " + ym.slice(2,4);
-      return {
-        d: ym,
-        label,
-        poker: Math.round(runPoker),
-        bet: ym >= BET_START_YM ? Math.round(runBet) : null,
-      };
-    });
-  }, [sessions, cashouts, betting, total, bettingBankroll]);
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -1483,33 +1433,6 @@ function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, 
         <MetricCard label="Банкролл беттинг" value={`€${bettingBankroll.toLocaleString()}`} color={C.gold}
           sub={`≈ ${fmtPlain(Math.round(bettingBankroll * eurUsd))}`} />
       </div>
-
-      {/* Bankroll history chart */}
-      {bankrollMonthly.length > 1 && (
-        <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
-          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, paddingLeft: 6 }}>
-            Банкролл по месяцам (конец месяца)
-          </div>
-          <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={bankrollMonthly} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-              <XAxis dataKey="label" tick={{ fontSize: 9, fill: C.textMuted }} interval="preserveStartEnd" />
-              <YAxis yAxisId="usd" tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={50} />
-              <YAxis yAxisId="eur" orientation="right" tick={{ fontSize: 10, fill: C.gold }}
-                tickFormatter={v => v === null ? "" : `€${(v/1000).toFixed(1)}k`} width={50} />
-              <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text }}
-                labelStyle={{ color: C.textDim }}
-                formatter={(v, name) => {
-                  if (v === null) return [null, null];
-                  if (name === "poker") return [fmtPlain(v), "Покер ($)"];
-                  return [`€${v.toLocaleString()}`, "Беттинг (€)"];
-                }} />
-              <Line yAxisId="usd" type="monotone" dataKey="poker" stroke={C.blue} strokeWidth={2} dot={false} name="poker" />
-              <Line yAxisId="eur" type="monotone" dataKey="bet" stroke={C.gold} strokeWidth={2} dot={false} name="bet" connectNulls={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
 
       {/* Big pie */}
       <div style={{ background: C.card, borderRadius: 12, padding: 20, border: `1px solid ${C.border}` }}>
@@ -1532,11 +1455,11 @@ function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, 
         <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>Детализация по румам</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {bankrollPie.map((item, i) => {
-            const pct = totalAll > 0 ? (item.value / totalAll * 100) : 0;
+            const pct = total > 0 ? (item.value / total * 100) : 0;
             return (
               <div key={item.name} style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ width: 10, height: 10, borderRadius: 3, background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
-                <div style={{ flex: 1, fontSize: 13, color: C.text }}>{item.name}</div>
+                <div style={{ flex: 1, fontSize: 13, color: C.text, }} labelStyle={{ color: C.textDim }} itemStyle={{ color: C.text }} cursor={{ fill: "rgba(255,255,255,0.05)" }}>{item.name}</div>
                 <div style={{ fontSize: 13, fontFamily: "'JetBrains Mono'", fontWeight: 500 }}>{fmtPlain(item.value)}</div>
                 <div style={{
                   width: 80, height: 6, background: C.border, borderRadius: 3, overflow: "hidden"
@@ -1563,24 +1486,25 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
   const dateInputStyle = { background: "#0f1923", border: `1px solid ${C.border}`, borderRadius: 6,
     padding: "4px 8px", color: C.text, fontSize: 11, fontFamily: "'JetBrains Mono'" };
 
-  // Compute period date range
-  const periodRange = useMemo(() => {
-    if (statsPeriod === "all") return { from: "2000-01-01", to: TODAY };
-    if (statsPeriod === "custom") return { from: customRange.from || "2000-01-01", to: customRange.to || TODAY };
-    const now = new Date();
-    let cutoff;
-    if (statsPeriod === "3y") cutoff = new Date(now.getFullYear()-3, now.getMonth(), now.getDate());
-    else if (statsPeriod === "1y") cutoff = new Date(now.getFullYear()-1, now.getMonth(), now.getDate());
-    else if (statsPeriod === "6m") cutoff = new Date(now.getFullYear(), now.getMonth()-6, now.getDate());
-    else cutoff = new Date(now.getFullYear(), now.getMonth()-3, now.getDate());
-    return { from: cutoff.toISOString().slice(0,10), to: TODAY };
-  }, [statsPeriod, customRange]);
-
   // Filter sessions by period
   const filtered = useMemo(() => {
     if (statsPeriod === "all") return sessions;
-    return sessions.filter(s => s.d >= periodRange.from && s.d <= periodRange.to);
-  }, [sessions, statsPeriod, periodRange]);
+    let fromStr, toStr;
+    if (statsPeriod === "custom") {
+      fromStr = customRange.from || "2000-01-01";
+      toStr = customRange.to || TODAY;
+    } else {
+      const now = new Date();
+      let cutoff;
+      if (statsPeriod === "3y") cutoff = new Date(now.getFullYear()-3, now.getMonth(), now.getDate());
+      else if (statsPeriod === "1y") cutoff = new Date(now.getFullYear()-1, now.getMonth(), now.getDate());
+      else if (statsPeriod === "6m") cutoff = new Date(now.getFullYear(), now.getMonth()-6, now.getDate());
+      else cutoff = new Date(now.getFullYear(), now.getMonth()-3, now.getDate());
+      fromStr = cutoff.toISOString().slice(0,10);
+      toStr = TODAY;
+    }
+    return sessions.filter(s => s.d >= fromStr && s.d <= toStr);
+  }, [sessions, statsPeriod, customRange]);
 
   // Filtered stats
   const fStats = useMemo(() => {
@@ -1665,18 +1589,14 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
 
   // Cashout stats - count months from April 2024
   const cashoutStats = useMemo(() => {
-    const CASHOUT_START = "2024-04-04";
-    const effectiveFrom = periodRange.from > CASHOUT_START ? periodRange.from : CASHOUT_START;
-    const effectiveTo = periodRange.to;
-    const filteredCashouts = cashouts.filter(c => c.d >= effectiveFrom && c.d <= effectiveTo);
-    const totalCashout = filteredCashouts.reduce((s, c) => s + c.v, 0);
-    const from = new Date(effectiveFrom);
-    const to = new Date(effectiveTo);
-    const monthsInRange = Math.max(1, (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()) + 1);
-    const avgPerMonth = totalCashout / monthsInRange;
-    const partial = periodRange.from < CASHOUT_START;
-    return { total: totalCashout, avgPerMonth, count: filteredCashouts.length, months: monthsInRange, partial };
-  }, [cashouts, periodRange]);
+    const totalCashout = cashouts.reduce((s, c) => s + c.v, 0);
+    // Months since April 2024
+    const startDate = new Date(2024, 3, 1); // April 2024
+    const now = new Date();
+    const monthsSinceStart = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth()) + 1;
+    const avgPerMonth = monthsSinceStart > 0 ? totalCashout / monthsSinceStart : 0;
+    return { total: totalCashout, avgPerMonth, count: cashouts.length, months: monthsSinceStart };
+  }, [cashouts]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1708,7 +1628,7 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
         <MetricCard small label="Серия W" value={`${streaks.maxWin} дн`} color={C.green} />
         <MetricCard small label="Серия L" value={`${streaks.maxLoss} дн`} color={C.red} />
         <MetricCard small label="Кэшаут" value={fmtPlain(cashoutStats.total)} color={C.purple}
-          sub={`~${fmtPlain(Math.round(cashoutStats.avgPerMonth))}/мес · ${cashoutStats.count} шт${cashoutStats.partial ? " · с апр 2024" : ""}`} />
+          sub={`~${fmtPlain(Math.round(cashoutStats.avgPerMonth))}/мес (${cashoutStats.months} мес)`} />
       </div>
 
       {/* Hours block */}

@@ -643,6 +643,9 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
     }
     saveNewSessions(updated);
     saveBankroll(newBR);
+    // Save betting bankroll if changed
+    const newBetBR = parseFloat(betBankrollEur);
+    if (!isNaN(newBetBR) && newBetBR !== bettingBR) saveBettingBR(newBetBR);
     setHours("");
     setSaved("session");
     setTimeout(() => setSaved(null), 2000);
@@ -751,6 +754,12 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
                   style={{ ...inputStyle, fontSize: 13, padding: "8px 10px" }} />
               </div>
             ))}
+            <div>
+              <div style={{ fontSize: 11, color: C.gold, marginBottom: 2 }}>Беттинг (€)</div>
+              <input type="number" value={betBankrollEur}
+                onChange={e => setBetBankrollEur(e.target.value)}
+                style={{ ...inputStyle, fontSize: 13, padding: "8px 10px", borderColor: C.gold }} />
+            </div>
           </div>
 
           {/* Result preview */}

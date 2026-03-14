@@ -1583,7 +1583,7 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
     const days = ["Вс","Пн","Вт","Ср","Чт","Пт","Сб"];
     const acc = Array(7).fill(null).map(() => ({ result: 0, hours: 0, count: 0 }));
     filtered.forEach(s => {
-      const dow = new Date(s.d).getDay();
+      const dow = new Date(s.d).getUTCDay();
       acc[dow].result += s.r;
       acc[dow].hours += s.h;
       acc[dow].count++;

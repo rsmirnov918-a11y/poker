@@ -123,7 +123,12 @@ const C = {
 
 const PIE_COLORS = [C.green, C.blue, C.purple, C.gold, C.cyan, C.pink, C.red, "#f97316"];
 
-const TODAY = new Date().toISOString().slice(0,10);
+const getLocalDate = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+};
+const dateToStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const TODAY = getLocalDate();
 
 // ─── MAIN COMPONENT ────────────────────────────────────────────────────────
 function PokerDashboard() {
@@ -211,7 +216,7 @@ function PokerDashboard() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `poker-save-${new Date().toISOString().slice(0,10)}.json`;
+    a.download = `poker-save-${getLocalDate()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }, [bankroll, bettingBR, eurUsd, newSessions, newBettingEntries, newCashouts]);
@@ -432,7 +437,7 @@ function PokerDashboard() {
       else if (chartPeriod === "1y") cutoff = new Date(now.getFullYear()-1, now.getMonth(), now.getDate());
       else if (chartPeriod === "6m") cutoff = new Date(now.getFullYear(), now.getMonth()-6, now.getDate());
       else cutoff = new Date(now.getFullYear(), now.getMonth()-3, now.getDate());
-      fromStr = cutoff.toISOString().slice(0,10);
+      fromStr = dateToStr(cutoff);
       toStr = TODAY;
     }
     return stats.equityCurveRaw.filter(p => p.d >= fromStr && p.d <= toStr);
@@ -506,7 +511,7 @@ function PokerDashboard() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `poker-data-${new Date().toISOString().slice(0,10)}.csv`;
+    a.download = `poker-data-${getLocalDate()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }, [monthlyPre, dailySessions, betting, newBettingEntries, allCashouts, bankroll, bettingBR, eurUsd]);
@@ -600,7 +605,7 @@ function PokerDashboard() {
 
 // ─── INPUT TAB ──────────────────────────────────────────────────────────
 function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, saveEurUsd, newSessions, saveNewSessions, newBettingEntries, saveNewBetting, newCashouts, saveNewCashouts, betting, allCashouts }) {
-  const today = new Date().toISOString().slice(0,10);
+  const today = getLocalDate();
   const [date, setDate] = useState(today);
   const [hours, setHours] = useState("");
   const [roomValues, setRoomValues] = useState(() => ({ ...bankroll }));
@@ -1548,7 +1553,7 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
       else if (statsPeriod === "1y") cutoff = new Date(now.getFullYear()-1, now.getMonth(), now.getDate());
       else if (statsPeriod === "6m") cutoff = new Date(now.getFullYear(), now.getMonth()-6, now.getDate());
       else cutoff = new Date(now.getFullYear(), now.getMonth()-3, now.getDate());
-      fromStr = cutoff.toISOString().slice(0,10);
+      fromStr = dateToStr(cutoff);
       toStr = TODAY;
     }
     return sessions.filter(s => s.d >= fromStr && s.d <= toStr);

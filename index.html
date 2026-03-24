@@ -147,13 +147,12 @@ function PokerDashboard() {
   const [newBettingEntries, setNewBettingEntries] = useState([]);
   const [newCashouts, setNewCashouts] = useState([]);
   const [loaded, setLoaded] = useState(false);
-  const [saveStatus, setSaveStatus] = useState("ok"); // "ok" | "saving" | "error" | "local"
+  const [saveStatus, setSaveStatus] = useState("ok");
 
-  // ─── PERSISTENCE: localStorage (primary) + Firestore (sync) ─────────────
-  const LS_KEY = "poker_data_v2";
+  // ─── FIRESTORE PERSISTENCE ────────────────────────────────────────────────
   const DOC_REF = db.collection("poker").doc("main");
 
-  // Hardcoded backup — last resort if both localStorage and Firestore fail
+  // Hardcoded backup (snapshot from Firebase Console 2026-03-23)
   const BACKUP_DATA = {
     bankroll: {"888":3631,"IPoker":4637,"WPN":2846,"SB":3408,"CoinPoker":1736,"\u0411\u0430\u043d\u043a":0,"USDT":220,"Cash":300},
     bettingBR: 2863, eurUsd: 1.162, bettingV2: true,
@@ -162,101 +161,64 @@ function PokerDashboard() {
     newBettingEntries: [{"d":"2026-02-28","v":-1854},{"d":"2026-03-31","v":0}],
   };
 
-  // Helper: apply data to state
   const applyData = (d) => {
     if (d.bankroll) setBankroll(d.bankroll);
     if (d.eurUsd) setEurUsd(d.eurUsd);
     if (d.newSessions) setNewSessions(d.newSessions);
     if (d.newCashouts) setNewCashouts(d.newCashouts);
-    if (!d.bettingV2) {
-      setBettingBR(5656);
-      setNewBettingEntries([]);
-    } else {
+    if (!d.bettingV2) { setBettingBR(5656); setNewBettingEntries([]); }
+    else {
       if (d.bettingBR !== undefined) setBettingBR(d.bettingBR);
       if (d.newBettingEntries) setNewBettingEntries(d.newBettingEntries);
     }
   };
 
-  // Pick best data source: compare by sessions count + updatedAt
-  const pickBest = (...sources) => {
-    return sources
-      .filter(s => s && s.newSessions && s.newSessions.length > 0)
-      .sort((a, b) => {
-        // More sessions = better, then newer timestamp
-        if (b.newSessions.length !== a.newSessions.length) return b.newSessions.length - a.newSessions.length;
-        return (b.updatedAt || "").localeCompare(a.updatedAt || "");
-      })[0] || null;
-  };
-
-  // Load on mount
+  // Load from Firestore, fallback to backup
+  const [firestoreOk, setFirestoreOk] = useState(false);
   useEffect(() => {
-    // 1) Read localStorage
-    let localData = null;
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw) localData = JSON.parse(raw);
-    } catch(e) {}
-
-    // 2) Try Firestore
+    console.log("[LOAD] Trying Firestore...");
     DOC_REF.get().then(doc => {
-      const fireData = doc.exists ? doc.data() : null;
-      const best = pickBest(fireData, localData, BACKUP_DATA);
-      if (best) {
-        applyData(best);
-        try { localStorage.setItem(LS_KEY, JSON.stringify(best)); } catch(e) {}
+      if (doc.exists) {
+        const d = doc.data();
+        console.log("[LOAD] Firestore OK! Sessions:", (d.newSessions||[]).length, "Cashouts:", (d.newCashouts||[]).length);
+        applyData(d);
+      } else {
+        console.log("[LOAD] Firestore doc empty, using backup");
+        applyData(BACKUP_DATA);
       }
+      setFirestoreOk(true);
       setLoaded(true);
       setSaveStatus("ok");
-      console.log("Loaded:", best === fireData ? "Firestore" : best === localData ? "localStorage" : "backup",
-        "sessions:", best?.newSessions?.length || 0);
     }).catch(e => {
-      // Firestore failed — use localStorage or backup
-      const best = pickBest(localData, BACKUP_DATA);
-      if (best) {
-        applyData(best);
-        try { localStorage.setItem(LS_KEY, JSON.stringify(best)); } catch(e2) {}
-      }
+      console.error("[LOAD] Firestore FAILED:", e.code, e.message);
+      console.log("[LOAD] Using backup data (", BACKUP_DATA.newSessions.length, "sessions)");
+      applyData(BACKUP_DATA);
       setLoaded(true);
-      setSaveStatus("local");
-      console.log("Firestore unavailable. Loaded:", best === localData ? "localStorage" : "backup",
-        "sessions:", best?.newSessions?.length || 0);
+      setSaveStatus("offline");
     });
   }, []);
 
-  // Auto-save: ALWAYS to localStorage, TRY Firestore
+  // Auto-save to Firestore (ONLY if loaded from Firestore successfully)
   const saveRef = useRef(null);
-  const initialLoadDone = useRef(false);
   useEffect(() => {
-    if (!loaded) return;
-    // Skip the first auto-save triggered by load (data is already saved)
-    if (!initialLoadDone.current) { initialLoadDone.current = true; return; }
+    if (!firestoreOk) return;
     clearTimeout(saveRef.current);
+    setSaveStatus("saving");
     saveRef.current = setTimeout(() => {
       const payload = {
         bankroll, bettingBR, eurUsd, newSessions, newBettingEntries, newCashouts,
         bettingV2: true, updatedAt: new Date().toISOString()
       };
-
-      // Safety: never overwrite real data with empty
-      try {
-        const existing = localStorage.getItem(LS_KEY);
-        if (existing) {
-          const old = JSON.parse(existing);
-          if (old.newSessions && old.newSessions.length > 0 && (!newSessions || newSessions.length === 0)) {
-            console.warn("BLOCKED: refusing to save empty sessions over", old.newSessions.length, "existing");
-            return;
-          }
-        }
-      } catch(e) {}
-
-      // Save to localStorage
-      try { localStorage.setItem(LS_KEY, JSON.stringify(payload)); } catch(e) {}
-
-      // Try Firestore
-      setSaveStatus("saving");
-      DOC_REF.set(payload).then(() => setSaveStatus("ok")).catch(() => setSaveStatus("local"));
+      console.log("[SAVE] Writing to Firestore... Sessions:", newSessions.length, "Cashouts:", newCashouts.length);
+      DOC_REF.set(payload).then(() => {
+        console.log("[SAVE] Firestore OK!");
+        setSaveStatus("ok");
+      }).catch(e => {
+        console.error("[SAVE] Firestore FAILED:", e.code, e.message);
+        setSaveStatus("error");
+      });
     }, 1000);
-  }, [loaded, bankroll, bettingBR, eurUsd, newSessions, newBettingEntries, newCashouts]);
+  }, [firestoreOk, bankroll, bettingBR, eurUsd, newSessions, newBettingEntries, newCashouts]);
 
   // Auto-fetch EUR/USD rate
   useEffect(() => {
@@ -301,6 +263,7 @@ function PokerDashboard() {
           setBettingBR(5656);
           setNewBettingEntries([]);
         }
+        setFirestoreOk(true); // enable saving after import
       } catch(err) {}
     };
     reader.readAsText(file);
@@ -605,7 +568,7 @@ function PokerDashboard() {
           <div style={{ fontSize: 20, fontWeight: 600, color: C.green }}>{fmtPlain(stats.bankrollPoker + Math.round(bettingBR * eurUsd))}</div>
           <div style={{ fontSize: 11, color: C.textDim }}>
             покер {fmtPlain(stats.bankrollPoker)} · беттинг <span style={{ color: C.gold }}>€{bettingBR.toLocaleString()}</span>
-            {<span style={{ marginLeft: 6, color: saveStatus === "ok" ? C.green : saveStatus === "saving" ? C.gold : saveStatus === "local" ? "#f97316" : C.red }}>{saveStatus === "ok" ? "● синхр" : saveStatus === "saving" ? "● ..." : saveStatus === "local" ? "● локально" : "● ошибка"}</span>}
+            {<span style={{ marginLeft: 6, color: saveStatus === "ok" ? C.green : saveStatus === "saving" ? C.gold : saveStatus === "offline" ? "#f97316" : C.red }}>{saveStatus === "ok" ? "● синхр" : saveStatus === "saving" ? "● ..." : saveStatus === "offline" ? "● оффлайн" : "● ошибка"}</span>}
           </div>
           <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
             <button onClick={exportCSV} style={{

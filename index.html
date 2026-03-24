@@ -638,9 +638,10 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
   const [editingLast, setEditingLast] = useState(false);
   const [editResult, setEditResult] = useState("");
   const [editHours, setEditHours] = useState("");
-  const [transferDir, setTransferDir] = useState("poker2bet"); // or "bet2poker"
+  const [transferDir, setTransferDir] = useState("poker2bet"); // "poker2bet" | "bet2poker" | "poker2poker"
   const [transferAmount, setTransferAmount] = useState("");
   const [transferRoom, setTransferRoom] = useState("888");
+  const [transferRoomTo, setTransferRoomTo] = useState("IPoker");
 
   const rooms = ["888","IPoker","WPN","SB","CoinPoker","\u0411\u0430\u043d\u043a","USDT","Cash"];
 
@@ -655,17 +656,21 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
   const submitTransfer = () => {
     const amountUsd = parseFloat(transferAmount);
     if (isNaN(amountUsd) || amountUsd <= 0) return;
-    const amountEur = Math.round(amountUsd / eurUsd);
     const newBR = { ...bankroll };
 
-    if (transferDir === "poker2bet") {
-      // Take USD from poker room, add EUR to betting
+    if (transferDir === "poker2poker") {
+      if (transferRoom === transferRoomTo) return;
+      newBR[transferRoom] = (newBR[transferRoom] || 0) - amountUsd;
+      newBR[transferRoomTo] = (newBR[transferRoomTo] || 0) + amountUsd;
+      saveBankroll(newBR);
+    } else if (transferDir === "poker2bet") {
+      const amountEur = Math.round(amountUsd / eurUsd);
       newBR[transferRoom] = (newBR[transferRoom] || 0) - amountUsd;
       saveBankroll(newBR);
       saveBettingBR(bettingBR + amountEur);
       setBetBankrollEur(String(bettingBR + amountEur));
     } else {
-      // Take EUR from betting, add USD to poker room
+      const amountEur = Math.round(amountUsd / eurUsd);
       newBR[transferRoom] = (newBR[transferRoom] || 0) + amountUsd;
       saveBankroll(newBR);
       saveBettingBR(bettingBR - amountEur);
@@ -952,36 +957,45 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
 
       {mode === "transfer" && (
         <div style={{ background: C.card, borderRadius: 12, padding: 20, border: `1px solid ${C.border}` }}>
-          <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>Перевод между покером и беттингом</div>
+          <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>Перевод средств</div>
 
-          {/* Direction */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-            <button onClick={() => setTransferDir("poker2bet")} style={{
-              flex: 1, padding: "10px", border: `1px solid ${transferDir === "poker2bet" ? C.gold : C.border}`,
-              borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontSize: 12,
-              background: transferDir === "poker2bet" ? "rgba(234,179,8,0.1)" : "transparent",
-              color: transferDir === "poker2bet" ? C.gold : C.textDim,
-            }}>Покер → Беттинг</button>
-            <button onClick={() => setTransferDir("bet2poker")} style={{
-              flex: 1, padding: "10px", border: `1px solid ${transferDir === "bet2poker" ? C.green : C.border}`,
-              borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontSize: 12,
-              background: transferDir === "bet2poker" ? "rgba(34,197,94,0.1)" : "transparent",
-              color: transferDir === "bet2poker" ? C.green : C.textDim,
-            }}>Беттинг → Покер</button>
+          {/* Direction - 3 buttons */}
+          <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+            {[
+              { id: "poker2poker", label: "Покер → Покер", c: C.blue },
+              { id: "poker2bet", label: "Покер → Бет", c: C.gold },
+              { id: "bet2poker", label: "Бет → Покер", c: C.green },
+            ].map(t => (
+              <button key={t.id} onClick={() => setTransferDir(t.id)} style={{
+                flex: 1, padding: "10px", border: `1px solid ${transferDir === t.id ? t.c : C.border}`,
+                borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontSize: 11,
+                background: transferDir === t.id ? `${t.c}18` : "transparent",
+                color: transferDir === t.id ? t.c : C.textDim,
+              }}>{t.label}</button>
+            ))}
           </div>
 
-          {/* Room + Amount */}
-          <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-            <div style={{ flex: 1 }}>
+          {/* Room selectors + Amount */}
+          <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 120 }}>
               <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>
-                {transferDir === "poker2bet" ? "ОТКУДА (рум)" : "КУДА (рум)"}
+                {transferDir === "bet2poker" ? "КУДА (рум)" : "ОТКУДА (рум)"}
               </div>
               <select value={transferRoom} onChange={e => setTransferRoom(e.target.value)}
                 style={{ ...inputStyle, cursor: "pointer" }}>
                 {rooms.map(r => <option key={r} value={r}>{r} (${(bankroll[r]||0).toLocaleString()})</option>)}
               </select>
             </div>
-            <div style={{ flex: 1 }}>
+            {transferDir === "poker2poker" && (
+              <div style={{ flex: 1, minWidth: 120 }}>
+                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>КУДА (рум)</div>
+                <select value={transferRoomTo} onChange={e => setTransferRoomTo(e.target.value)}
+                  style={{ ...inputStyle, cursor: "pointer" }}>
+                  {rooms.filter(r => r !== transferRoom).map(r => <option key={r} value={r}>{r} (${(bankroll[r]||0).toLocaleString()})</option>)}
+                </select>
+              </div>
+            )}
+            <div style={{ flex: 1, minWidth: 120 }}>
               <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>СУММА ($)</div>
               <input type="number" placeholder="500" value={transferAmount}
                 onChange={e => setTransferAmount(e.target.value)} style={inputStyle} />
@@ -994,30 +1008,48 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
             const eur = Math.round(usd / eurUsd);
             return (
               <div style={{ background: "#0f1923", borderRadius: 8, padding: 14, marginBottom: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ fontSize: 12, color: C.textDim }}>
-                    {transferDir === "poker2bet"
-                      ? `${transferRoom}: ${fmtPlain(bankroll[transferRoom]||0)} → ${fmtPlain((bankroll[transferRoom]||0) - usd)}`
-                      : `${transferRoom}: ${fmtPlain(bankroll[transferRoom]||0)} → ${fmtPlain((bankroll[transferRoom]||0) + usd)}`}
+                {transferDir === "poker2poker" ? (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontSize: 12, color: C.textDim }}>
+                      {transferRoom}: {fmtPlain(bankroll[transferRoom]||0)} → {fmtPlain((bankroll[transferRoom]||0) - usd)}
+                    </div>
+                    <div style={{ fontSize: 18, fontWeight: 600, fontFamily: "'JetBrains Mono'", color: C.blue }}>
+                      {fmtPlain(usd)}
+                    </div>
+                    <div style={{ fontSize: 12, color: C.textDim }}>
+                      {transferRoomTo}: {fmtPlain(bankroll[transferRoomTo]||0)} → {fmtPlain((bankroll[transferRoomTo]||0) + usd)}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 12, color: C.textDim }}>
-                    {transferDir === "poker2bet"
-                      ? `Бет: €${bettingBR.toLocaleString()} → €${(bettingBR + eur).toLocaleString()}`
-                      : `Бет: €${bettingBR.toLocaleString()} → €${(bettingBR - eur).toLocaleString()}`}
-                  </div>
-                </div>
-                <div style={{ textAlign: "center", marginTop: 10, fontSize: 18, fontWeight: 600, fontFamily: "'JetBrains Mono'", color: C.gold }}>
-                  ${usd.toLocaleString()} = €{eur.toLocaleString()}
-                  <span style={{ fontSize: 11, color: C.textMuted, marginLeft: 8 }}>по курсу {eurUsd}</span>
-                </div>
+                ) : (
+                  <>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ fontSize: 12, color: C.textDim }}>
+                        {transferDir === "poker2bet"
+                          ? `${transferRoom}: ${fmtPlain(bankroll[transferRoom]||0)} → ${fmtPlain((bankroll[transferRoom]||0) - usd)}`
+                          : `${transferRoom}: ${fmtPlain(bankroll[transferRoom]||0)} → ${fmtPlain((bankroll[transferRoom]||0) + usd)}`}
+                      </div>
+                      <div style={{ fontSize: 12, color: C.textDim }}>
+                        {transferDir === "poker2bet"
+                          ? `Бет: €${bettingBR.toLocaleString()} → €${(bettingBR + eur).toLocaleString()}`
+                          : `Бет: €${bettingBR.toLocaleString()} → €${(bettingBR - eur).toLocaleString()}`}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "center", marginTop: 10, fontSize: 18, fontWeight: 600, fontFamily: "'JetBrains Mono'", color: C.gold }}>
+                      ${usd.toLocaleString()} = €{eur.toLocaleString()}
+                      <span style={{ fontSize: 11, color: C.textMuted, marginLeft: 8 }}>по курсу {eurUsd}</span>
+                    </div>
+                  </>
+                )}
               </div>
             );
           })()}
 
           <button onClick={submitTransfer} style={{
             width: "100%", padding: "12px", border: "none", borderRadius: 8, cursor: "pointer",
-            background: `linear-gradient(135deg, ${C.gold}, #f97316)`, color: "#fff",
-            fontSize: 14, fontWeight: 600, fontFamily: "inherit",
+            background: transferDir === "poker2poker"
+              ? `linear-gradient(135deg, ${C.blue}, ${C.purple})`
+              : `linear-gradient(135deg, ${C.gold}, #f97316)`,
+            color: "#fff", fontSize: 14, fontWeight: 600, fontFamily: "inherit",
             opacity: transferAmount && parseFloat(transferAmount) > 0 ? 1 : 0.4,
             pointerEvents: transferAmount && parseFloat(transferAmount) > 0 ? "auto" : "none",
           }}>

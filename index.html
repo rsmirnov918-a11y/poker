@@ -147,7 +147,7 @@ function PokerDashboard() {
   const [newBettingEntries, setNewBettingEntries] = useState([]);
   const [newCashouts, setNewCashouts] = useState([]);
   const [loaded, setLoaded] = useState(false);
-  const [firestoreOk, setFirestoreOk] = useState(false); // true only after successful load
+  const [firestoreOk, setFirestoreOk] = useState(false);
   const [saveStatus, setSaveStatus] = useState("ok"); // "ok" | "saving" | "error"
 
   // ─── FIRESTORE PERSISTENCE ────────────────────────────────────────────────
@@ -173,16 +173,27 @@ function PokerDashboard() {
       }
       setFirestoreOk(true);
       setLoaded(true);
+      console.log("Firestore loaded OK, sessions:", doc.exists ? (doc.data().newSessions||[]).length : 0);
     }).catch(e => {
       console.error("Firestore load error:", e);
-      setLoaded(true); // allow UI to render, but firestoreOk stays false
+      // Load backup data if Firestore fails
+      console.log("Loading backup data...");
+      setBankroll({"888":3631,"IPoker":4637,"WPN":2846,"SB":3408,"CoinPoker":1736,"\u0411\u0430\u043d\u043a":0,"USDT":220,"Cash":300});
+      setBettingBR(2863);
+      setEurUsd(1.162);
+      setNewSessions([{"d":"2026-02-23","h":4.77,"r":-236},{"d":"2026-02-24","h":3.08,"r":-391},{"d":"2026-02-25","h":3.4,"r":338},{"d":"2026-02-26","h":6,"r":1002},{"d":"2026-02-27","h":6,"r":-1997},{"d":"2026-02-28","h":4.58,"r":968},{"d":"2026-03-03","h":0,"r":0},{"d":"2026-03-05","h":5.32,"r":53},{"d":"2026-03-06","h":5.92,"r":1189},{"d":"2026-03-08","h":6.25,"r":-260},{"d":"2026-03-09","h":6.13,"r":-474},{"d":"2026-03-10","h":6.05,"r":145},{"d":"2026-03-11","h":6.03,"r":1185},{"d":"2026-03-12","h":6,"r":-143},{"d":"2026-03-13","h":6.1,"r":-109},{"d":"2026-03-14","h":2.5,"r":239},{"d":"2026-03-15","h":6.07,"r":1192},{"d":"2026-03-16","h":6.15,"r":1089},{"d":"2026-03-17","h":6.25,"r":755},{"d":"2026-03-19","h":5.55,"r":762},{"d":"2026-03-20","h":6.2,"r":987},{"d":"2026-03-21","h":6.3,"r":1210},{"d":"2026-03-22","h":6.05,"r":434},{"d":"2026-03-23","h":5.95,"r":-112}]);
+      setNewCashouts([{"d":"2026-02-23","v":100},{"d":"2026-02-23","v":100},{"d":"2026-02-24","v":400},{"d":"2026-02-25","v":100},{"d":"2026-02-26","v":400},{"d":"2026-02-26","v":150},{"d":"2026-02-28","v":200},{"d":"2026-02-28","v":150},{"d":"2026-03-01","v":400},{"d":"2026-03-01","v":200},{"d":"2026-03-01","v":300},{"d":"2026-03-01","v":400},{"d":"2026-03-03","v":100},{"d":"2026-03-03","v":100},{"d":"2026-03-04","v":100},{"d":"2026-03-04","v":500},{"d":"2026-03-05","v":200},{"d":"2026-03-05","v":300},{"d":"2026-03-07","v":300},{"d":"2026-03-08","v":300},{"d":"2026-03-09","v":200},{"d":"2026-03-11","v":150},{"d":"2026-03-12","v":200},{"d":"2026-03-12","v":150},{"d":"2026-03-16","v":500},{"d":"2026-03-18","v":100},{"d":"2026-03-18","v":300},{"d":"2026-03-19","v":200},{"d":"2026-03-19","v":400},{"d":"2026-03-20","v":500},{"d":"2026-03-20","v":200},{"d":"2026-03-21","v":200},{"d":"2026-03-22","v":1000}]);
+      setNewBettingEntries([{"d":"2026-02-28","v":-1854},{"d":"2026-03-31","v":0}]);
+      setSaveStatus("backup");
+      setLoaded(true);
+      // Don't set firestoreOk — prevents overwriting cloud data
     });
   }, []);
 
   // Auto-save to Firestore when data changes (debounced)
   const saveRef = useRef(null);
   useEffect(() => {
-    if (!firestoreOk) return; // Never save if Firestore didn't load successfully
+    if (!firestoreOk) return; // NEVER save unless Firestore loaded successfully
     clearTimeout(saveRef.current);
     setSaveStatus("saving");
     saveRef.current = setTimeout(() => {
@@ -546,7 +557,7 @@ function PokerDashboard() {
           <div style={{ fontSize: 20, fontWeight: 600, color: C.green }}>{fmtPlain(stats.bankrollPoker + Math.round(bettingBR * eurUsd))}</div>
           <div style={{ fontSize: 11, color: C.textDim }}>
             покер {fmtPlain(stats.bankrollPoker)} · беттинг <span style={{ color: C.gold }}>€{bettingBR.toLocaleString()}</span>
-            {<span style={{ marginLeft: 6, color: saveStatus === "ok" ? C.green : saveStatus === "saving" ? C.gold : C.red }}>{saveStatus === "ok" ? "● синхр" : saveStatus === "saving" ? "● ..." : "● ошибка"}</span>}
+            {<span style={{ marginLeft: 6, color: saveStatus === "ok" ? C.green : saveStatus === "saving" ? C.gold : saveStatus === "backup" ? C.gold : C.red }}>{saveStatus === "ok" ? "● синхр" : saveStatus === "saving" ? "● ..." : saveStatus === "backup" ? "● бэкап" : "● ошибка"}</span>}
           </div>
           <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
             <button onClick={exportCSV} style={{
@@ -598,7 +609,8 @@ function PokerDashboard() {
           customRange={customRange} setCustomRange={setCustomRange}
           filteredEquity={filteredEquity} filteredMonthly={filteredMonthly} cashouts={allCashouts} />}
         {tab === "bankroll" && <BankrollTab bankroll={bankroll} bankrollPie={bankrollPie} total={stats.bankrollPoker}
-          cashouts={allCashouts} bettingBankroll={bettingBR} eurUsd={eurUsd} />}
+          cashouts={allCashouts} bettingBankroll={bettingBR} eurUsd={eurUsd}
+          sessions={dailySessions} betting={allBetting} />}
         {tab === "stats" && <StatsTab stats={stats} sessions={dailySessions} statsPeriod={statsPeriod} setStatsPeriod={setStatsPeriod}
           customRange={customRange} setCustomRange={setCustomRange} cashouts={allCashouts} />}
       </div>
@@ -1478,19 +1490,66 @@ function ChartsTab({ stats, chartPeriod, setChartPeriod, customRange, setCustomR
 }
 
 // ─── BANKROLL TAB ───────────────────────────────────────────────────────────
-function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, eurUsd }) {
+function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, eurUsd, sessions, betting }) {
   const totalAll = total + Math.round(bettingBankroll * eurUsd);
+
+  const bankrollMonthly = useMemo(() => {
+    const POKER_START_YM = "2024-04";
+    const BET_START_YM = "2025-12";
+    const sessFrom = sessions.filter(s => s.d >= POKER_START_YM);
+    const cashFrom = cashouts.filter(c => c.d >= POKER_START_YM);
+    const betFrom = betting.filter(b => b.d >= BET_START_YM);
+    const pokerBefore = total - sessFrom.reduce((s,x) => s+x.r, 0) + cashFrom.reduce((s,x) => s+x.v, 0);
+    const betBefore = bettingBankroll - betFrom.reduce((s,x) => s+x.v, 0);
+    const monthSess = {}, monthCash = {}, monthBet = {};
+    sessFrom.forEach(s => { const ym = s.d.slice(0,7); monthSess[ym] = (monthSess[ym]||0) + s.r; });
+    cashFrom.forEach(c => { const ym = c.d.slice(0,7); monthCash[ym] = (monthCash[ym]||0) + c.v; });
+    betFrom.forEach(b => { const ym = b.d.slice(0,7); monthBet[ym] = (monthBet[ym]||0) + b.v; });
+    const months = [];
+    const now = new Date();
+    let y = 2024, m = 3;
+    while (y < now.getFullYear() || (y === now.getFullYear() && m <= now.getMonth())) {
+      months.push(`${y}-${String(m+1).padStart(2,"0")}`);
+      m++; if (m > 11) { m = 0; y++; }
+    }
+    let runPoker = pokerBefore, runBet = betBefore;
+    return months.map(ym => {
+      runPoker += (monthSess[ym] || 0) - (monthCash[ym] || 0);
+      runBet += (monthBet[ym] || 0);
+      return { d: ym, label: monthNames[parseInt(ym.slice(5,7))-1] + " " + ym.slice(2,4),
+        poker: Math.round(runPoker), bet: ym >= BET_START_YM ? Math.round(runBet) : null };
+    });
+  }, [sessions, cashouts, betting, total, bettingBankroll]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <MetricCard label="Всего (по курсу)" value={fmtPlain(totalAll)} color={C.green}
-          sub={`€/$ ${eurUsd}`} />
+        <MetricCard label="Всего (по курсу)" value={fmtPlain(totalAll)} color={C.green} sub={`€/$ ${eurUsd}`} />
         <MetricCard label="Банкролл покер" value={fmtPlain(total)} color={C.blue} />
         <MetricCard label="Банкролл беттинг" value={`€${bettingBankroll.toLocaleString()}`} color={C.gold}
           sub={`≈ ${fmtPlain(Math.round(bettingBankroll * eurUsd))}`} />
       </div>
 
-      {/* Big pie */}
+      {bankrollMonthly.length > 1 && (
+        <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, paddingLeft: 6 }}>Банкролл по месяцам (конец месяца)</div>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={bankrollMonthly} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="label" tick={{ fontSize: 9, fill: C.textMuted }} interval="preserveStartEnd" />
+              <YAxis yAxisId="usd" tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={50} />
+              <YAxis yAxisId="eur" orientation="right" tick={{ fontSize: 10, fill: C.gold }}
+                tickFormatter={v => v === null ? "" : `€${(v/1000).toFixed(1)}k`} width={50} />
+              <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text }}
+                labelStyle={{ color: C.textDim }}
+                formatter={(v, name) => { if (v === null) return [null, null]; return name === "poker" ? [fmtPlain(v), "Покер ($)"] : [`€${v.toLocaleString()}`, "Беттинг (€)"]; }} />
+              <Line yAxisId="usd" type="monotone" dataKey="poker" stroke={C.blue} strokeWidth={2} dot={false} name="poker" />
+              <Line yAxisId="eur" type="monotone" dataKey="bet" stroke={C.gold} strokeWidth={2} dot={false} name="bet" connectNulls={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
       <div style={{ background: C.card, borderRadius: 12, padding: 20, border: `1px solid ${C.border}` }}>
         <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>Распределение банкролла</div>
         <ResponsiveContainer width="100%" height={240}>
@@ -1500,26 +1559,23 @@ function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, 
               labelLine={{ stroke: C.textMuted }}>
               {bankrollPie.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
             </Pie>
-            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text, }} labelStyle={{ color: C.textDim }} itemStyle={{ color: C.text }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
+            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text }} labelStyle={{ color: C.textDim }} itemStyle={{ color: C.text }}
               formatter={(v) => fmtPlain(v)} />
           </PieChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Rooms list */}
       <div style={{ background: C.card, borderRadius: 12, padding: 16, border: `1px solid ${C.border}` }}>
         <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>Детализация по румам</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {bankrollPie.map((item, i) => {
-            const pct = total > 0 ? (item.value / total * 100) : 0;
+            const pct = totalAll > 0 ? (item.value / totalAll * 100) : 0;
             return (
               <div key={item.name} style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ width: 10, height: 10, borderRadius: 3, background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
-                <div style={{ flex: 1, fontSize: 13, color: C.text, }} labelStyle={{ color: C.textDim }} itemStyle={{ color: C.text }} cursor={{ fill: "rgba(255,255,255,0.05)" }}>{item.name}</div>
+                <div style={{ flex: 1, fontSize: 13, color: C.text }}>{item.name}</div>
                 <div style={{ fontSize: 13, fontFamily: "'JetBrains Mono'", fontWeight: 500 }}>{fmtPlain(item.value)}</div>
-                <div style={{
-                  width: 80, height: 6, background: C.border, borderRadius: 3, overflow: "hidden"
-                }}>
+                <div style={{ width: 80, height: 6, background: C.border, borderRadius: 3, overflow: "hidden" }}>
                   <div style={{ width: `${pct}%`, height: "100%", background: PIE_COLORS[i % PIE_COLORS.length], borderRadius: 3 }} />
                 </div>
                 <div style={{ fontSize: 11, color: C.textMuted, width: 35, textAlign: "right" }}>{pct.toFixed(0)}%</div>
@@ -1542,25 +1598,24 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
   const dateInputStyle = { background: "#0f1923", border: `1px solid ${C.border}`, borderRadius: 6,
     padding: "4px 8px", color: C.text, fontSize: 11, fontFamily: "'JetBrains Mono'" };
 
+  // Compute period date range
+  const periodRange = useMemo(() => {
+    if (statsPeriod === "all") return { from: "2000-01-01", to: TODAY };
+    if (statsPeriod === "custom") return { from: customRange.from || "2000-01-01", to: customRange.to || TODAY };
+    const now = new Date();
+    let cutoff;
+    if (statsPeriod === "3y") cutoff = new Date(now.getFullYear()-3, now.getMonth(), now.getDate());
+    else if (statsPeriod === "1y") cutoff = new Date(now.getFullYear()-1, now.getMonth(), now.getDate());
+    else if (statsPeriod === "6m") cutoff = new Date(now.getFullYear(), now.getMonth()-6, now.getDate());
+    else cutoff = new Date(now.getFullYear(), now.getMonth()-3, now.getDate());
+    return { from: dateToStr(cutoff), to: TODAY };
+  }, [statsPeriod, customRange]);
+
   // Filter sessions by period
   const filtered = useMemo(() => {
     if (statsPeriod === "all") return sessions;
-    let fromStr, toStr;
-    if (statsPeriod === "custom") {
-      fromStr = customRange.from || "2000-01-01";
-      toStr = customRange.to || TODAY;
-    } else {
-      const now = new Date();
-      let cutoff;
-      if (statsPeriod === "3y") cutoff = new Date(now.getFullYear()-3, now.getMonth(), now.getDate());
-      else if (statsPeriod === "1y") cutoff = new Date(now.getFullYear()-1, now.getMonth(), now.getDate());
-      else if (statsPeriod === "6m") cutoff = new Date(now.getFullYear(), now.getMonth()-6, now.getDate());
-      else cutoff = new Date(now.getFullYear(), now.getMonth()-3, now.getDate());
-      fromStr = dateToStr(cutoff);
-      toStr = TODAY;
-    }
-    return sessions.filter(s => s.d >= fromStr && s.d <= toStr);
-  }, [sessions, statsPeriod, customRange]);
+    return sessions.filter(s => s.d >= periodRange.from && s.d <= periodRange.to);
+  }, [sessions, statsPeriod, periodRange]);
 
   // Filtered stats
   const fStats = useMemo(() => {
@@ -1643,16 +1698,20 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
     })).filter(d => d.sessions > 0);
   }, [filtered]);
 
-  // Cashout stats - count months from April 2024
+  // Cashout stats - filtered by period
   const cashoutStats = useMemo(() => {
-    const totalCashout = cashouts.reduce((s, c) => s + c.v, 0);
-    // Months since April 2024
-    const startDate = new Date(2024, 3, 1); // April 2024
-    const now = new Date();
-    const monthsSinceStart = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth()) + 1;
-    const avgPerMonth = monthsSinceStart > 0 ? totalCashout / monthsSinceStart : 0;
-    return { total: totalCashout, avgPerMonth, count: cashouts.length, months: monthsSinceStart };
-  }, [cashouts]);
+    const CASHOUT_START = "2024-04-04";
+    const effectiveFrom = periodRange.from > CASHOUT_START ? periodRange.from : CASHOUT_START;
+    const effectiveTo = periodRange.to;
+    const filteredCashouts = cashouts.filter(c => c.d >= effectiveFrom && c.d <= effectiveTo);
+    const totalCashout = filteredCashouts.reduce((s, c) => s + c.v, 0);
+    const from = new Date(effectiveFrom);
+    const to = new Date(effectiveTo);
+    const monthsInRange = Math.max(1, (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()) + 1);
+    const avgPerMonth = totalCashout / monthsInRange;
+    const partial = periodRange.from < CASHOUT_START;
+    return { total: totalCashout, avgPerMonth, count: filteredCashouts.length, months: monthsInRange, partial };
+  }, [cashouts, periodRange]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1684,7 +1743,7 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
         <MetricCard small label="Серия W" value={`${streaks.maxWin} дн`} color={C.green} />
         <MetricCard small label="Серия L" value={`${streaks.maxLoss} дн`} color={C.red} />
         <MetricCard small label="Кэшаут" value={fmtPlain(cashoutStats.total)} color={C.purple}
-          sub={`~${fmtPlain(Math.round(cashoutStats.avgPerMonth))}/мес (${cashoutStats.months} мес)`} />
+          sub={`~${fmtPlain(Math.round(cashoutStats.avgPerMonth))}/мес · ${cashoutStats.count} шт${cashoutStats.partial ? " · с апр 2024" : ""}`} />
       </div>
 
       {/* Hours block */}

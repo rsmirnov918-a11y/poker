@@ -146,79 +146,70 @@ function PokerDashboard() {
   const [newSessions, setNewSessions] = useState([]);
   const [newBettingEntries, setNewBettingEntries] = useState([]);
   const [newCashouts, setNewCashouts] = useState([]);
+  const [bankrollHistory, setBankrollHistory] = useState([]); // [{d:"2026-03-24", poker:16578, betEur:2863, total:19905}]
   const [loaded, setLoaded] = useState(false);
-  const [saveStatus, setSaveStatus] = useState("ok");
+  const [firestoreOk, setFirestoreOk] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("ok"); // "ok" | "saving" | "error"
 
   // ─── FIRESTORE PERSISTENCE ────────────────────────────────────────────────
   const DOC_REF = db.collection("poker").doc("main");
 
-  // Hardcoded backup (snapshot from Firebase Console 2026-03-23)
-  const BACKUP_DATA = {
-    bankroll: {"888":3631,"IPoker":4637,"WPN":2846,"SB":3408,"CoinPoker":1736,"\u0411\u0430\u043d\u043a":0,"USDT":220,"Cash":300},
-    bettingBR: 2863, eurUsd: 1.162, bettingV2: true,
-    newSessions: [{"d":"2026-02-23","h":4.77,"r":-236},{"d":"2026-02-24","h":3.08,"r":-391},{"d":"2026-02-25","h":3.4,"r":338},{"d":"2026-02-26","h":6,"r":1002},{"d":"2026-02-27","h":6,"r":-1997},{"d":"2026-02-28","h":4.58,"r":968},{"d":"2026-03-03","h":0,"r":0},{"d":"2026-03-05","h":5.32,"r":53},{"d":"2026-03-06","h":5.92,"r":1189},{"d":"2026-03-08","h":6.25,"r":-260},{"d":"2026-03-09","h":6.13,"r":-474},{"d":"2026-03-10","h":6.05,"r":145},{"d":"2026-03-11","h":6.03,"r":1185},{"d":"2026-03-12","h":6,"r":-143},{"d":"2026-03-13","h":6.1,"r":-109},{"d":"2026-03-14","h":2.5,"r":239},{"d":"2026-03-15","h":6.07,"r":1192},{"d":"2026-03-16","h":6.15,"r":1089},{"d":"2026-03-17","h":6.25,"r":755},{"d":"2026-03-19","h":5.55,"r":762},{"d":"2026-03-20","h":6.2,"r":987},{"d":"2026-03-21","h":6.3,"r":1210},{"d":"2026-03-22","h":6.05,"r":434},{"d":"2026-03-23","h":5.95,"r":-112}],
-    newCashouts: [{"d":"2026-02-23","v":100},{"d":"2026-02-23","v":100},{"d":"2026-02-24","v":400},{"d":"2026-02-25","v":100},{"d":"2026-02-26","v":400},{"d":"2026-02-26","v":150},{"d":"2026-02-28","v":200},{"d":"2026-02-28","v":150},{"d":"2026-03-01","v":400},{"d":"2026-03-01","v":200},{"d":"2026-03-01","v":300},{"d":"2026-03-01","v":400},{"d":"2026-03-03","v":100},{"d":"2026-03-03","v":100},{"d":"2026-03-04","v":100},{"d":"2026-03-04","v":500},{"d":"2026-03-05","v":200},{"d":"2026-03-05","v":300},{"d":"2026-03-07","v":300},{"d":"2026-03-08","v":300},{"d":"2026-03-09","v":200},{"d":"2026-03-11","v":150},{"d":"2026-03-12","v":200},{"d":"2026-03-12","v":150},{"d":"2026-03-16","v":500},{"d":"2026-03-18","v":100},{"d":"2026-03-18","v":300},{"d":"2026-03-19","v":200},{"d":"2026-03-19","v":400},{"d":"2026-03-20","v":500},{"d":"2026-03-20","v":200},{"d":"2026-03-21","v":200},{"d":"2026-03-22","v":1000}],
-    newBettingEntries: [{"d":"2026-02-28","v":-1854},{"d":"2026-03-31","v":0}],
-  };
-
-  const applyData = (d) => {
-    if (d.bankroll) setBankroll(d.bankroll);
-    if (d.eurUsd) setEurUsd(d.eurUsd);
-    if (d.newSessions) setNewSessions(d.newSessions);
-    if (d.newCashouts) setNewCashouts(d.newCashouts);
-    if (!d.bettingV2) { setBettingBR(5656); setNewBettingEntries([]); }
-    else {
-      if (d.bettingBR !== undefined) setBettingBR(d.bettingBR);
-      if (d.newBettingEntries) setNewBettingEntries(d.newBettingEntries);
-    }
-  };
-
-  // Load from Firestore, fallback to backup
-  const [firestoreOk, setFirestoreOk] = useState(false);
+  // Load from Firestore on mount
   useEffect(() => {
-    console.log("[LOAD] Trying Firestore...");
     DOC_REF.get().then(doc => {
       if (doc.exists) {
         const d = doc.data();
-        console.log("[LOAD] Firestore OK! Sessions:", (d.newSessions||[]).length, "Cashouts:", (d.newCashouts||[]).length);
-        applyData(d);
-      } else {
-        console.log("[LOAD] Firestore doc empty, using backup");
-        applyData(BACKUP_DATA);
+        if (d.bankroll) setBankroll(d.bankroll);
+        if (d.eurUsd) setEurUsd(d.eurUsd);
+        if (d.newSessions) setNewSessions(d.newSessions);
+        if (d.newCashouts) setNewCashouts(d.newCashouts);
+        if (d.bankrollHistory) setBankrollHistory(d.bankrollHistory);
+        // One-time migration: reset betting to EUR system
+        if (!d.bettingV2) {
+          setBettingBR(5656);
+          setNewBettingEntries([]);
+        } else {
+          if (d.bettingBR !== undefined) setBettingBR(d.bettingBR);
+          if (d.newBettingEntries) setNewBettingEntries(d.newBettingEntries);
+        }
       }
       setFirestoreOk(true);
       setLoaded(true);
-      setSaveStatus("ok");
+      console.log("Firestore loaded OK, sessions:", doc.exists ? (doc.data().newSessions||[]).length : 0);
     }).catch(e => {
-      console.error("[LOAD] Firestore FAILED:", e.code, e.message);
-      console.log("[LOAD] Using backup data (", BACKUP_DATA.newSessions.length, "sessions)");
-      applyData(BACKUP_DATA);
+      console.error("Firestore load error:", e);
+      // Load backup data if Firestore fails
+      console.log("Loading backup data...");
+      setBankroll({"888":3631,"IPoker":4637,"WPN":2846,"SB":3408,"CoinPoker":1736,"\u0411\u0430\u043d\u043a":0,"USDT":220,"Cash":300});
+      setBettingBR(2863);
+      setEurUsd(1.162);
+      setNewSessions([{"d":"2026-02-23","h":4.77,"r":-236},{"d":"2026-02-24","h":3.08,"r":-391},{"d":"2026-02-25","h":3.4,"r":338},{"d":"2026-02-26","h":6,"r":1002},{"d":"2026-02-27","h":6,"r":-1997},{"d":"2026-02-28","h":4.58,"r":968},{"d":"2026-03-03","h":0,"r":0},{"d":"2026-03-05","h":5.32,"r":53},{"d":"2026-03-06","h":5.92,"r":1189},{"d":"2026-03-08","h":6.25,"r":-260},{"d":"2026-03-09","h":6.13,"r":-474},{"d":"2026-03-10","h":6.05,"r":145},{"d":"2026-03-11","h":6.03,"r":1185},{"d":"2026-03-12","h":6,"r":-143},{"d":"2026-03-13","h":6.1,"r":-109},{"d":"2026-03-14","h":2.5,"r":239},{"d":"2026-03-15","h":6.07,"r":1192},{"d":"2026-03-16","h":6.15,"r":1089},{"d":"2026-03-17","h":6.25,"r":755},{"d":"2026-03-19","h":5.55,"r":762},{"d":"2026-03-20","h":6.2,"r":987},{"d":"2026-03-21","h":6.3,"r":1210},{"d":"2026-03-22","h":6.05,"r":434},{"d":"2026-03-23","h":5.95,"r":-112}]);
+      setNewCashouts([{"d":"2026-02-23","v":100},{"d":"2026-02-23","v":100},{"d":"2026-02-24","v":400},{"d":"2026-02-25","v":100},{"d":"2026-02-26","v":400},{"d":"2026-02-26","v":150},{"d":"2026-02-28","v":200},{"d":"2026-02-28","v":150},{"d":"2026-03-01","v":400},{"d":"2026-03-01","v":200},{"d":"2026-03-01","v":300},{"d":"2026-03-01","v":400},{"d":"2026-03-03","v":100},{"d":"2026-03-03","v":100},{"d":"2026-03-04","v":100},{"d":"2026-03-04","v":500},{"d":"2026-03-05","v":200},{"d":"2026-03-05","v":300},{"d":"2026-03-07","v":300},{"d":"2026-03-08","v":300},{"d":"2026-03-09","v":200},{"d":"2026-03-11","v":150},{"d":"2026-03-12","v":200},{"d":"2026-03-12","v":150},{"d":"2026-03-16","v":500},{"d":"2026-03-18","v":100},{"d":"2026-03-18","v":300},{"d":"2026-03-19","v":200},{"d":"2026-03-19","v":400},{"d":"2026-03-20","v":500},{"d":"2026-03-20","v":200},{"d":"2026-03-21","v":200},{"d":"2026-03-22","v":1000}]);
+      setNewBettingEntries([{"d":"2026-02-28","v":-1854},{"d":"2026-03-31","v":0}]);
+      setSaveStatus("backup");
       setLoaded(true);
-      setSaveStatus("offline");
+      // Don't set firestoreOk — prevents overwriting cloud data
     });
   }, []);
 
-  // Auto-save to Firestore (ONLY if loaded from Firestore successfully)
+  // Auto-save to Firestore when data changes (debounced)
   const saveRef = useRef(null);
   useEffect(() => {
-    if (!firestoreOk) return;
+    if (!firestoreOk) return; // NEVER save unless Firestore loaded successfully
     clearTimeout(saveRef.current);
     setSaveStatus("saving");
     saveRef.current = setTimeout(() => {
-      const payload = {
-        bankroll, bettingBR, eurUsd, newSessions, newBettingEntries, newCashouts,
+      DOC_REF.set({
+        bankroll, bettingBR, eurUsd, newSessions, newBettingEntries, newCashouts, bankrollHistory,
         bettingV2: true, updatedAt: new Date().toISOString()
-      };
-      console.log("[SAVE] Writing to Firestore... Sessions:", newSessions.length, "Cashouts:", newCashouts.length);
-      DOC_REF.set(payload).then(() => {
-        console.log("[SAVE] Firestore OK!");
+      }).then(() => {
         setSaveStatus("ok");
       }).catch(e => {
-        console.error("[SAVE] Firestore FAILED:", e.code, e.message);
+        console.error("Firestore save error:", e);
         setSaveStatus("error");
       });
     }, 1000);
-  }, [firestoreOk, bankroll, bettingBR, eurUsd, newSessions, newBettingEntries, newCashouts]);
+  }, [firestoreOk, bankroll, bettingBR, eurUsd, newSessions, newBettingEntries, newCashouts, bankrollHistory]);
 
   // Auto-fetch EUR/USD rate
   useEffect(() => {
@@ -233,9 +224,29 @@ function PokerDashboard() {
     })();
   }, []);
 
+  // Record daily bankroll snapshot
+  useEffect(() => {
+    if (!firestoreOk) return;
+    const today = getLocalDate();
+    const pokerTotal = Object.values(bankroll).reduce((s,v) => s+v, 0);
+    const totalUsd = pokerTotal + Math.round(bettingBR * eurUsd);
+    const snap = { d: today, poker: pokerTotal, betEur: Math.round(bettingBR), total: totalUsd };
+
+    setBankrollHistory(prev => {
+      const idx = prev.findIndex(h => h.d === today);
+      if (idx >= 0) {
+        // Update today's entry
+        const updated = [...prev];
+        updated[idx] = snap;
+        return updated;
+      }
+      return [...prev, snap];
+    });
+  }, [firestoreOk, bankroll, bettingBR, eurUsd]);
+
   // JSON import/export as backup
   const exportJSON = useCallback(() => {
-    const data = { bankroll, bettingBR, eurUsd, newSessions, newBettingEntries, newCashouts, bettingV2: true, exportDate: new Date().toISOString() };
+    const data = { bankroll, bettingBR, eurUsd, newSessions, newBettingEntries, newCashouts, bankrollHistory, bettingV2: true, exportDate: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -256,6 +267,7 @@ function PokerDashboard() {
         if (data.eurUsd) setEurUsd(data.eurUsd);
         if (data.newSessions) setNewSessions(data.newSessions);
         if (data.newCashouts) setNewCashouts(data.newCashouts);
+        if (data.bankrollHistory) setBankrollHistory(data.bankrollHistory);
         if (data.bettingV2) {
           if (data.bettingBR !== undefined) setBettingBR(data.bettingBR);
           if (data.newBettingEntries) setNewBettingEntries(data.newBettingEntries);
@@ -263,7 +275,7 @@ function PokerDashboard() {
           setBettingBR(5656);
           setNewBettingEntries([]);
         }
-        setFirestoreOk(true); // enable saving after import
+        setFirestoreOk(true); // allow saving after import
       } catch(err) {}
     };
     reader.readAsText(file);
@@ -568,7 +580,7 @@ function PokerDashboard() {
           <div style={{ fontSize: 20, fontWeight: 600, color: C.green }}>{fmtPlain(stats.bankrollPoker + Math.round(bettingBR * eurUsd))}</div>
           <div style={{ fontSize: 11, color: C.textDim }}>
             покер {fmtPlain(stats.bankrollPoker)} · беттинг <span style={{ color: C.gold }}>€{bettingBR.toLocaleString()}</span>
-            {<span style={{ marginLeft: 6, color: saveStatus === "ok" ? C.green : saveStatus === "saving" ? C.gold : saveStatus === "offline" ? "#f97316" : C.red }}>{saveStatus === "ok" ? "● синхр" : saveStatus === "saving" ? "● ..." : saveStatus === "offline" ? "● оффлайн" : "● ошибка"}</span>}
+            {<span style={{ marginLeft: 6, color: saveStatus === "ok" ? C.green : saveStatus === "saving" ? C.gold : saveStatus === "backup" ? C.gold : C.red }}>{saveStatus === "ok" ? "● синхр" : saveStatus === "saving" ? "● ..." : saveStatus === "backup" ? "● бэкап" : "● ошибка"}</span>}
           </div>
           <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
             <button onClick={exportCSV} style={{
@@ -621,7 +633,7 @@ function PokerDashboard() {
           filteredEquity={filteredEquity} filteredMonthly={filteredMonthly} cashouts={allCashouts} />}
         {tab === "bankroll" && <BankrollTab bankroll={bankroll} bankrollPie={bankrollPie} total={stats.bankrollPoker}
           cashouts={allCashouts} bettingBankroll={bettingBR} eurUsd={eurUsd}
-          sessions={dailySessions} betting={allBetting} />}
+          bankrollHistory={bankrollHistory} />}
         {tab === "stats" && <StatsTab stats={stats} sessions={dailySessions} statsPeriod={statsPeriod} setStatsPeriod={setStatsPeriod}
           customRange={customRange} setCustomRange={setCustomRange} cashouts={allCashouts} />}
       </div>
@@ -1533,36 +1545,8 @@ function ChartsTab({ stats, chartPeriod, setChartPeriod, customRange, setCustomR
 }
 
 // ─── BANKROLL TAB ───────────────────────────────────────────────────────────
-function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, eurUsd, sessions, betting }) {
+function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, eurUsd, bankrollHistory }) {
   const totalAll = total + Math.round(bettingBankroll * eurUsd);
-
-  const bankrollMonthly = useMemo(() => {
-    const POKER_START_YM = "2024-04";
-    const BET_START_YM = "2025-12";
-    const sessFrom = sessions.filter(s => s.d >= POKER_START_YM);
-    const cashFrom = cashouts.filter(c => c.d >= POKER_START_YM);
-    const betFrom = betting.filter(b => b.d >= BET_START_YM);
-    const pokerBefore = total - sessFrom.reduce((s,x) => s+x.r, 0) + cashFrom.reduce((s,x) => s+x.v, 0);
-    const betBefore = bettingBankroll - betFrom.reduce((s,x) => s+x.v, 0);
-    const monthSess = {}, monthCash = {}, monthBet = {};
-    sessFrom.forEach(s => { const ym = s.d.slice(0,7); monthSess[ym] = (monthSess[ym]||0) + s.r; });
-    cashFrom.forEach(c => { const ym = c.d.slice(0,7); monthCash[ym] = (monthCash[ym]||0) + c.v; });
-    betFrom.forEach(b => { const ym = b.d.slice(0,7); monthBet[ym] = (monthBet[ym]||0) + b.v; });
-    const months = [];
-    const now = new Date();
-    let y = 2024, m = 3;
-    while (y < now.getFullYear() || (y === now.getFullYear() && m <= now.getMonth())) {
-      months.push(`${y}-${String(m+1).padStart(2,"0")}`);
-      m++; if (m > 11) { m = 0; y++; }
-    }
-    let runPoker = pokerBefore, runBet = betBefore;
-    return months.map(ym => {
-      runPoker += (monthSess[ym] || 0) - (monthCash[ym] || 0);
-      runBet += (monthBet[ym] || 0);
-      return { d: ym, label: monthNames[parseInt(ym.slice(5,7))-1] + " " + ym.slice(2,4),
-        poker: Math.round(runPoker), bet: ym >= BET_START_YM ? Math.round(runBet) : null };
-    });
-  }, [sessions, cashouts, betting, total, bettingBankroll]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1573,22 +1557,37 @@ function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, 
           sub={`≈ ${fmtPlain(Math.round(bettingBankroll * eurUsd))}`} />
       </div>
 
-      {bankrollMonthly.length > 1 && (
+      {bankrollHistory.length > 0 && (
         <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
-          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, paddingLeft: 6 }}>Банкролл по месяцам (конец месяца)</div>
-          <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={bankrollMonthly} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingLeft: 6, marginBottom: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 500 }}>Банкролл (ежедневный трекинг)</div>
+            <div style={{ fontSize: 11, color: C.textMuted }}>{bankrollHistory.length} дн</div>
+          </div>
+          <ResponsiveContainer width="100%" height={260}>
+            <ComposedChart data={bankrollHistory} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
+              <defs>
+                <linearGradient id="brGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={C.green} stopOpacity={0.15} />
+                  <stop offset="100%" stopColor={C.green} stopOpacity={0} />
+                </linearGradient>
+              </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-              <XAxis dataKey="label" tick={{ fontSize: 9, fill: C.textMuted }} interval="preserveStartEnd" />
+              <XAxis dataKey="d" tick={{ fontSize: 9, fill: C.textMuted }}
+                tickFormatter={d => d.slice(5)} interval="preserveStartEnd" />
               <YAxis yAxisId="usd" tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={50} />
               <YAxis yAxisId="eur" orientation="right" tick={{ fontSize: 10, fill: C.gold }}
-                tickFormatter={v => v === null ? "" : `€${(v/1000).toFixed(1)}k`} width={50} />
+                tickFormatter={v => `€${(v/1000).toFixed(1)}k`} width={45} />
               <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text }}
                 labelStyle={{ color: C.textDim }}
-                formatter={(v, name) => { if (v === null) return [null, null]; return name === "poker" ? [fmtPlain(v), "Покер ($)"] : [`€${v.toLocaleString()}`, "Беттинг (€)"]; }} />
-              <Line yAxisId="usd" type="monotone" dataKey="poker" stroke={C.blue} strokeWidth={2} dot={false} name="poker" />
-              <Line yAxisId="eur" type="monotone" dataKey="bet" stroke={C.gold} strokeWidth={2} dot={false} name="bet" connectNulls={false} />
-            </LineChart>
+                formatter={(v, name) => {
+                  if (name === "total") return [fmtPlain(v), "Всего ($)"];
+                  if (name === "poker") return [fmtPlain(v), "Покер ($)"];
+                  return [`€${v.toLocaleString()}`, "Беттинг (€)"];
+                }} />
+              <Area yAxisId="usd" type="monotone" dataKey="total" stroke={C.green} strokeWidth={2} fill="url(#brGrad)" name="total" dot={bankrollHistory.length < 60} />
+              <Line yAxisId="usd" type="monotone" dataKey="poker" stroke={C.blue} strokeWidth={1.5} dot={false} name="poker" />
+              <Line yAxisId="eur" type="monotone" dataKey="betEur" stroke={C.gold} strokeWidth={1.5} dot={false} name="betEur" />
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       )}

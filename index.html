@@ -147,6 +147,7 @@ function PokerDashboard() {
   const [newBettingEntries, setNewBettingEntries] = useState([]);
   const [newCashouts, setNewCashouts] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const [firestoreOk, setFirestoreOk] = useState(false); // true only after successful load
   const [saveStatus, setSaveStatus] = useState("ok"); // "ok" | "saving" | "error"
 
   // ─── FIRESTORE PERSISTENCE ────────────────────────────────────────────────
@@ -170,17 +171,18 @@ function PokerDashboard() {
           if (d.newBettingEntries) setNewBettingEntries(d.newBettingEntries);
         }
       }
+      setFirestoreOk(true);
       setLoaded(true);
     }).catch(e => {
       console.error("Firestore load error:", e);
-      setLoaded(true);
+      setLoaded(true); // allow UI to render, but firestoreOk stays false
     });
   }, []);
 
   // Auto-save to Firestore when data changes (debounced)
   const saveRef = useRef(null);
   useEffect(() => {
-    if (!loaded) return;
+    if (!firestoreOk) return; // Never save if Firestore didn't load successfully
     clearTimeout(saveRef.current);
     setSaveStatus("saving");
     saveRef.current = setTimeout(() => {
@@ -194,7 +196,7 @@ function PokerDashboard() {
         setSaveStatus("error");
       });
     }, 1000);
-  }, [loaded, bankroll, bettingBR, eurUsd, newSessions, newBettingEntries, newCashouts]);
+  }, [firestoreOk, bankroll, bettingBR, eurUsd, newSessions, newBettingEntries, newCashouts]);
 
   // Auto-fetch EUR/USD rate
   useEffect(() => {
@@ -239,6 +241,7 @@ function PokerDashboard() {
           setBettingBR(5656);
           setNewBettingEntries([]);
         }
+        setFirestoreOk(true); // allow saving after import
       } catch(err) {}
     };
     reader.readAsText(file);

@@ -1445,7 +1445,7 @@ function ChartsTab({ stats, chartPeriod, setChartPeriod, customRange, setCustomR
             <XAxis dataKey="label" tick={{ fontSize: 10, fill: C.textMuted }} interval={0} angle={-45} textAnchor="end" height={50} />
             <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={50} />
             <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text, }} labelStyle={{ color: C.textDim }} itemStyle={{ color: C.text }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
-              formatter={(v) => [fmt(v), "Покер"]} />
+              formatter={(v) => [fmt(v), "Покер"]} itemStyle={{ color: C.text }} />
             <ReferenceLine y={0} stroke={C.textMuted} strokeDasharray="3 3" />
             <Bar dataKey="result" radius={[4,4,0,0]}>
               {filteredMonthly.map((entry, i) => (
@@ -1537,7 +1537,7 @@ function ChartsTab({ stats, chartPeriod, setChartPeriod, customRange, setCustomR
             <XAxis dataKey="label" tick={{ fontSize: 9, fill: C.textMuted }} interval={0} angle={-45} textAnchor="end" height={50} />
             <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={45} />
             <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text, }} labelStyle={{ color: C.textDim }} itemStyle={{ color: C.text }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
-              formatter={(v) => [fmtPlain(v), "Кэшаут"]} />
+              formatter={(v) => [fmtPlain(v), "Кэшаут"]} itemStyle={{ color: C.text }} />
             <Bar dataKey="v" fill={C.purple} fillOpacity={0.7} radius={[4,4,0,0]} />
           </BarChart>
         </ResponsiveContainer>
@@ -2166,7 +2166,7 @@ function ReportsTab({ sessions, cashouts, betting, monthlyPre }) {
             <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={45} />
             <ReferenceLine y={0} stroke={C.border} />
             <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text }}
-              formatter={(v) => [fmtPlain(v), "Покер"]} />
+              formatter={(v) => [fmtPlain(v), "Покер"]} itemStyle={{ color: C.text }} />
             <Bar dataKey="poker" radius={[4,4,0,0]}>
               {report.monthly.map((m, i) => (
                 <Cell key={i} fill={m.poker >= 0 ? C.green : C.red} fillOpacity={0.8} />
@@ -2213,7 +2213,7 @@ function ReportsTab({ sessions, cashouts, betting, monthlyPre }) {
                   <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={45} />
                   <ReferenceLine y={0} stroke={C.border} />
                   <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text }}
-                    formatter={(v) => [fmt(v), "Покер"]} />
+                    formatter={(v) => [fmt(v), "Покер"]} itemStyle={{ color: C.text }} />
                   <Bar dataKey="poker" radius={[3,3,0,0]}>
                     {allQ.map((q, i) => <Cell key={i} fill={q.poker >= 0 ? C.green : C.red} fillOpacity={0.8} />)}
                   </Bar>
@@ -2230,7 +2230,7 @@ function ReportsTab({ sessions, cashouts, betting, monthlyPre }) {
                   <XAxis dataKey="q" tick={{ fontSize: 9, fill: C.textMuted }} interval={0} angle={-45} textAnchor="end" height={40} />
                   <YAxis tick={{ fontSize: 10, fill: C.textMuted }} width={40} />
                   <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text }}
-                    formatter={(v) => [`${v}ч`, "Часы"]} />
+                    formatter={(v) => [`${v}ч`, "Часы"]} itemStyle={{ color: C.text }} />
                   <Bar dataKey="hours" radius={[3,3,0,0]} fill={C.blue} fillOpacity={0.7} />
                 </BarChart>
               </ResponsiveContainer>
@@ -2245,7 +2245,7 @@ function ReportsTab({ sessions, cashouts, betting, monthlyPre }) {
                   <XAxis dataKey="q" tick={{ fontSize: 10, fill: C.textMuted }} interval={0} />
                   <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={45} />
                   <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text }}
-                    formatter={(v) => [fmtPlain(v), "Кэшаут"]} />
+                    formatter={(v) => [fmtPlain(v), "Кэшаут"]} itemStyle={{ color: C.text }} />
                   <Bar dataKey="cashout" radius={[3,3,0,0]} fill={C.purple} fillOpacity={0.7} />
                 </BarChart>
               </ResponsiveContainer>

@@ -637,7 +637,7 @@ function PokerDashboard() {
           bankrollHistory={bankrollHistory} />}
         {tab === "stats" && <StatsTab stats={stats} sessions={dailySessions} statsPeriod={statsPeriod} setStatsPeriod={setStatsPeriod}
           customRange={customRange} setCustomRange={setCustomRange} cashouts={allCashouts} />}
-        {tab === "reports" && <ReportsTab sessions={dailySessions} cashouts={allCashouts} betting={allBetting} />}
+        {tab === "reports" && <ReportsTab sessions={dailySessions} cashouts={allCashouts} betting={allBetting} monthlyPre={monthlyPre} />}
       </div>
     </div>
   );
@@ -1950,21 +1950,27 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
 }
 
 // ─── REPORTS TAB ────────────────────────────────────────────────────────────
-function ReportsTab({ sessions, cashouts, betting }) {
+function ReportsTab({ sessions, cashouts, betting, monthlyPre }) {
   const [selectedQ, setSelectedQ] = useState(null);
+
+  // Combine all data sources (monthly pre + daily sessions)
+  const allData = useMemo(() => {
+    const combined = [...monthlyPre.map(m => ({ d: m.d, r: m.r, h: 0 })), ...sessions];
+    return combined;
+  }, [monthlyPre, sessions]);
 
   // Generate all quarters that have data
   const quarters = useMemo(() => {
-    if (!sessions.length) return [];
+    if (!allData.length) return [];
     const qSet = new Set();
-    sessions.forEach(s => {
+    allData.forEach(s => {
       const y = s.d.slice(0,4);
       const m = parseInt(s.d.slice(5,7));
       const q = Math.ceil(m / 3);
       qSet.add(`${y}-Q${q}`);
     });
     return [...qSet].sort().reverse();
-  }, [sessions]);
+  }, [allData]);
 
   // Auto-select current quarter
   useEffect(() => {
@@ -1988,7 +1994,8 @@ function ReportsTab({ sessions, cashouts, betting }) {
   // Compute quarterly stats
   const report = useMemo(() => {
     if (!qRange) return null;
-    const qs = sessions.filter(s => s.d >= qRange.from && s.d <= qRange.to);
+    const qs = allData.filter(s => s.d >= qRange.from && s.d <= qRange.to);
+    const qDaily = sessions.filter(s => s.d >= qRange.from && s.d <= qRange.to); // daily only (has hours)
     const qc = cashouts.filter(c => c.d >= qRange.from && c.d <= qRange.to);
     const qb = betting.filter(b => b.d >= qRange.from && b.d <= qRange.to);
 
@@ -2001,8 +2008,8 @@ function ReportsTab({ sessions, cashouts, betting }) {
     const totalCashouts = qc.reduce((s,x) => s+x.v, 0);
     const bettingEur = qb.reduce((s,x) => s+x.v, 0);
 
-    const best = qs.length > 0 ? qs.reduce((b,s) => s.r > b.r ? s : b, qs[0]) : null;
-    const worst = qs.length > 0 ? qs.reduce((w,s) => s.r < w.r ? s : w, qs[0]) : null;
+    const best = qDaily.length > 0 ? qDaily.reduce((b,s) => s.r > b.r ? s : b, qDaily[0]) : null;
+    const worst = qDaily.length > 0 ? qDaily.reduce((w,s) => s.r < w.r ? s : w, qDaily[0]) : null;
 
     // Monthly breakdown
     const monthly = qRange.months.map(ym => {
@@ -2030,16 +2037,16 @@ function ReportsTab({ sessions, cashouts, betting }) {
       const pem = pq * 3;
       return { from: `${py}-${String(psm).padStart(2,"0")}-01`, to: `${py}-${String(pem).padStart(2,"0")}-31` };
     })();
-    const prevSess = sessions.filter(s => s.d >= prevRange.from && s.d <= prevRange.to);
-    const prevPoker = prevSess.reduce((s,x) => s+x.r, 0);
-    const prevHours = prevSess.reduce((s,x) => s+x.h, 0);
+    const prevAll = allData.filter(s => s.d >= prevRange.from && s.d <= prevRange.to);
+    const prevPoker = prevAll.reduce((s,x) => s+x.r, 0);
+    const prevHours = prevAll.reduce((s,x) => s+x.h, 0);
 
     return {
       pokerResult, totalHours, dph, winDays, lossDays, winPct, totalCashouts, bettingEur,
       sessions: qs.length, best, worst, monthly,
-      prev: { poker: prevPoker, hours: prevHours, sessions: prevSess.length },
+      prev: { poker: prevPoker, hours: prevHours, sessions: prevAll.length },
     };
-  }, [qRange, sessions, cashouts, betting, selectedQ]);
+  }, [qRange, allData, sessions, cashouts, betting, selectedQ]);
 
   const delta = (cur, prev) => {
     const diff = cur - prev;
@@ -2168,6 +2175,84 @@ function ReportsTab({ sessions, cashouts, betting }) {
           </BarChart>
         </ResponsiveContainer>
       </div>
+
+      {/* ─── Quarterly bar charts ─── */}
+      {(() => {
+        // Build all quarters stats from all data (including pre-2020)
+        const allQ = quarters
+          .filter(q => q >= "2017-Q1") // start from 2017 (meaningful monthly data)
+          .map(q => {
+          const [y, qn] = [parseInt(q.slice(0,4)), parseInt(q.slice(6))];
+          const sm = (qn - 1) * 3 + 1;
+          const em = qn * 3;
+          const from = `${y}-${String(sm).padStart(2,"0")}-01`;
+          const to = `${y}-${String(em).padStart(2,"0")}-31`;
+          const qs = allData.filter(s => s.d >= from && s.d <= to);
+          const qc = cashouts.filter(c => c.d >= from && c.d <= to);
+          return {
+            q: `Q${qn} ${String(y).slice(2)}`,
+            key: `${y}-Q${qn}`,
+            poker: qs.reduce((s,x) => s+x.r, 0),
+            hours: Math.round(qs.reduce((s,x) => s+x.h, 0)),
+            cashout: qc.reduce((s,x) => s+x.v, 0),
+          };
+        }).reverse();
+
+        const cashQ = allQ.filter(q => q.key >= "2024-Q2");
+        const hoursQ = allQ.filter(q => q.key >= "2020-Q2");
+
+        return (
+          <React.Fragment>
+            {/* Results by quarter */}
+            <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, paddingLeft: 6 }}>Результат покера по кварталам ($)</div>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={allQ} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                  <XAxis dataKey="q" tick={{ fontSize: 9, fill: C.textMuted }} interval={0} angle={-45} textAnchor="end" height={40} />
+                  <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={45} />
+                  <ReferenceLine y={0} stroke={C.border} />
+                  <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text }}
+                    formatter={(v) => [fmt(v), "Покер"]} />
+                  <Bar dataKey="poker" radius={[3,3,0,0]}>
+                    {allQ.map((q, i) => <Cell key={i} fill={q.poker >= 0 ? C.green : C.red} fillOpacity={0.8} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Hours by quarter */}
+            <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, paddingLeft: 6 }}>Часы по кварталам</div>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={hoursQ} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                  <XAxis dataKey="q" tick={{ fontSize: 9, fill: C.textMuted }} interval={0} angle={-45} textAnchor="end" height={40} />
+                  <YAxis tick={{ fontSize: 10, fill: C.textMuted }} width={40} />
+                  <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text }}
+                    formatter={(v) => [`${v}ч`, "Часы"]} />
+                  <Bar dataKey="hours" radius={[3,3,0,0]} fill={C.blue} fillOpacity={0.7} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Cashouts by quarter (from Q2 2024) */}
+            <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, paddingLeft: 6 }}>Кэшауты по кварталам ($)</div>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={cashQ} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                  <XAxis dataKey="q" tick={{ fontSize: 10, fill: C.textMuted }} interval={0} />
+                  <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={45} />
+                  <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text }}
+                    formatter={(v) => [fmtPlain(v), "Кэшаут"]} />
+                  <Bar dataKey="cashout" radius={[3,3,0,0]} fill={C.purple} fillOpacity={0.7} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </React.Fragment>
+        );
+      })()}
     </div>
   );
 }

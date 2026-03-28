@@ -512,6 +512,7 @@ function PokerDashboard() {
     { id: "charts", label: "\u0413\u0440\u0430\u0444\u0438\u043a\u0438", icon: "\u25e2" },
     { id: "bankroll", label: "\u0411\u0430\u043d\u043a\u0440\u043e\u043b\u043b", icon: "\u25cb" },
     { id: "stats", label: "\u0421\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043a\u0430", icon: "\u2261" },
+    { id: "reports", label: "\u041e\u0442\u0447\u0451\u0442\u044b", icon: "\u25a3" },
   ];
 
   // ─── EXPORT CSV ────────────────────────────────────────────────────────
@@ -636,6 +637,7 @@ function PokerDashboard() {
           bankrollHistory={bankrollHistory} />}
         {tab === "stats" && <StatsTab stats={stats} sessions={dailySessions} statsPeriod={statsPeriod} setStatsPeriod={setStatsPeriod}
           customRange={customRange} setCustomRange={setCustomRange} cashouts={allCashouts} />}
+        {tab === "reports" && <ReportsTab sessions={dailySessions} cashouts={allCashouts} betting={allBetting} />}
       </div>
     </div>
   );
@@ -1938,6 +1940,229 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
             <Bar dataKey="result" name="Итого" radius={[4,4,0,0]}>
               {byCalMonth.map((entry, i) => (
                 <Cell key={i} fill={entry.result >= 0 ? C.green : C.red} fillOpacity={0.7} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+// ─── REPORTS TAB ────────────────────────────────────────────────────────────
+function ReportsTab({ sessions, cashouts, betting }) {
+  const [selectedQ, setSelectedQ] = useState(null);
+
+  // Generate all quarters that have data
+  const quarters = useMemo(() => {
+    if (!sessions.length) return [];
+    const qSet = new Set();
+    sessions.forEach(s => {
+      const y = s.d.slice(0,4);
+      const m = parseInt(s.d.slice(5,7));
+      const q = Math.ceil(m / 3);
+      qSet.add(`${y}-Q${q}`);
+    });
+    return [...qSet].sort().reverse();
+  }, [sessions]);
+
+  // Auto-select current quarter
+  useEffect(() => {
+    if (!selectedQ && quarters.length) setSelectedQ(quarters[0]);
+  }, [quarters]);
+
+  // Quarter date range
+  const qRange = useMemo(() => {
+    if (!selectedQ) return null;
+    const [y, q] = [parseInt(selectedQ.slice(0,4)), parseInt(selectedQ.slice(6))];
+    const startM = (q - 1) * 3 + 1;
+    const endM = q * 3;
+    return {
+      from: `${y}-${String(startM).padStart(2,"0")}-01`,
+      to: `${y}-${String(endM).padStart(2,"0")}-31`,
+      label: `Q${q} ${y}`,
+      months: [startM, startM+1, startM+2].map(m => `${y}-${String(m).padStart(2,"0")}`),
+    };
+  }, [selectedQ]);
+
+  // Compute quarterly stats
+  const report = useMemo(() => {
+    if (!qRange) return null;
+    const qs = sessions.filter(s => s.d >= qRange.from && s.d <= qRange.to);
+    const qc = cashouts.filter(c => c.d >= qRange.from && c.d <= qRange.to);
+    const qb = betting.filter(b => b.d >= qRange.from && b.d <= qRange.to);
+
+    const pokerResult = qs.reduce((s,x) => s+x.r, 0);
+    const totalHours = qs.reduce((s,x) => s+x.h, 0);
+    const dph = totalHours > 0 ? pokerResult / totalHours : 0;
+    const winDays = qs.filter(s => s.r > 0).length;
+    const lossDays = qs.filter(s => s.r < 0).length;
+    const winPct = qs.length > 0 ? (winDays / qs.length * 100) : 0;
+    const totalCashouts = qc.reduce((s,x) => s+x.v, 0);
+    const bettingEur = qb.reduce((s,x) => s+x.v, 0);
+
+    const best = qs.length > 0 ? qs.reduce((b,s) => s.r > b.r ? s : b, qs[0]) : null;
+    const worst = qs.length > 0 ? qs.reduce((w,s) => s.r < w.r ? s : w, qs[0]) : null;
+
+    // Monthly breakdown
+    const monthly = qRange.months.map(ym => {
+      const ms = qs.filter(s => s.d.slice(0,7) === ym);
+      const mb = qb.filter(b => b.d.slice(0,7) === ym);
+      const mc = qc.filter(c => c.d.slice(0,7) === ym);
+      const mResult = ms.reduce((s,x) => s+x.r, 0);
+      const mHours = ms.reduce((s,x) => s+x.h, 0);
+      return {
+        label: monthNames[parseInt(ym.slice(5,7))-1],
+        poker: mResult, hours: mHours,
+        dph: mHours > 0 ? mResult / mHours : 0,
+        sessions: ms.length,
+        bettingEur: mb.reduce((s,x) => s+x.v, 0),
+        cashouts: mc.reduce((s,x) => s+x.v, 0),
+      };
+    });
+
+    // Previous quarter for comparison
+    const [y, q] = [parseInt(selectedQ.slice(0,4)), parseInt(selectedQ.slice(6))];
+    const prevQ = q > 1 ? `${y}-Q${q-1}` : `${y-1}-Q4`;
+    const prevRange = (() => {
+      const [py, pq] = [parseInt(prevQ.slice(0,4)), parseInt(prevQ.slice(6))];
+      const psm = (pq - 1) * 3 + 1;
+      const pem = pq * 3;
+      return { from: `${py}-${String(psm).padStart(2,"0")}-01`, to: `${py}-${String(pem).padStart(2,"0")}-31` };
+    })();
+    const prevSess = sessions.filter(s => s.d >= prevRange.from && s.d <= prevRange.to);
+    const prevPoker = prevSess.reduce((s,x) => s+x.r, 0);
+    const prevHours = prevSess.reduce((s,x) => s+x.h, 0);
+
+    return {
+      pokerResult, totalHours, dph, winDays, lossDays, winPct, totalCashouts, bettingEur,
+      sessions: qs.length, best, worst, monthly,
+      prev: { poker: prevPoker, hours: prevHours, sessions: prevSess.length },
+    };
+  }, [qRange, sessions, cashouts, betting, selectedQ]);
+
+  const delta = (cur, prev) => {
+    const diff = cur - prev;
+    if (prev === 0) return null;
+    return diff;
+  };
+  const deltaEl = (cur, prev, isMoney) => {
+    const d = delta(cur, prev);
+    if (d === null || prev === 0) return null;
+    const col = d >= 0 ? C.green : C.red;
+    const str = isMoney ? fmt(Math.round(d)) : (d >= 0 ? "+" : "") + Math.round(d);
+    return React.createElement("span", { style: { fontSize: 10, color: col, marginLeft: 4 } }, str);
+  };
+
+  if (!report) return null;
+
+  const rowStyle = { display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${C.border}` };
+  const labelSt = { fontSize: 12, color: C.textDim };
+  const valSt = { fontSize: 13, fontFamily: "'JetBrains Mono'", fontWeight: 500 };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Quarter selector */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {quarters.map(q => (
+          <button key={q} onClick={() => setSelectedQ(q)} style={{
+            padding: "8px 16px", border: `1px solid ${selectedQ === q ? C.green : C.border}`,
+            borderRadius: 8, cursor: "pointer", fontSize: 13, fontFamily: "inherit", fontWeight: selectedQ === q ? 600 : 400,
+            background: selectedQ === q ? C.greenBg : "transparent",
+            color: selectedQ === q ? C.green : C.textDim,
+          }}>{q.replace("-", " ")}</button>
+        ))}
+      </div>
+
+      {/* Main metrics */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <MetricCard label="Покер ($)" value={fmt(report.pokerResult)} color={report.pokerResult >= 0 ? C.green : C.red}
+          sub={`${report.sessions} сессий · ${Math.round(report.totalHours)}ч`} />
+        <MetricCard label="Беттинг (€)" value={`€${report.bettingEur.toLocaleString()}`} color={report.bettingEur >= 0 ? C.green : C.red} />
+        <MetricCard label="Кэшаут" value={fmtPlain(report.totalCashouts)} color={C.purple}
+          sub={`${cashouts.filter(c => c.d >= qRange.from && c.d <= qRange.to).length} шт`} />
+        <MetricCard label="$/час" value={`$${Math.round(report.dph)}`} color={C.blue} />
+      </div>
+
+      {/* Poker details */}
+      <div style={{ background: C.card, borderRadius: 12, padding: 16, border: `1px solid ${C.border}` }}>
+        <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>Покер — детали</div>
+        <div style={rowStyle}>
+          <span style={labelSt}>Результат</span>
+          <span style={{ ...valSt, color: report.pokerResult >= 0 ? C.green : C.red }}>
+            {fmt(report.pokerResult)}{deltaEl(report.pokerResult, report.prev.poker, true)}
+          </span>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelSt}>Часы</span>
+          <span style={valSt}>{Math.round(report.totalHours)}ч{deltaEl(report.totalHours, report.prev.hours, false)}</span>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelSt}>$/час</span>
+          <span style={{ ...valSt, color: C.blue }}>${Math.round(report.dph)}</span>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelSt}>Сессии</span>
+          <span style={valSt}>{report.sessions}{deltaEl(report.sessions, report.prev.sessions, false)}</span>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelSt}>Винрейт</span>
+          <span style={valSt}>{report.winDays}W / {report.lossDays}L ({report.winPct.toFixed(0)}%)</span>
+        </div>
+        {report.best && (
+          <div style={rowStyle}>
+            <span style={labelSt}>Лучший день</span>
+            <span style={valSt}><span style={{ color: C.textMuted, fontSize: 11 }}>{report.best.d}</span> <span style={{ color: C.green }}>{fmt(report.best.r)}</span></span>
+          </div>
+        )}
+        {report.worst && (
+          <div style={{ ...rowStyle, borderBottom: "none" }}>
+            <span style={labelSt}>Худший день</span>
+            <span style={valSt}><span style={{ color: C.textMuted, fontSize: 11 }}>{report.worst.d}</span> <span style={{ color: C.red }}>{fmt(report.worst.r)}</span></span>
+          </div>
+        )}
+      </div>
+
+      {/* Monthly breakdown */}
+      <div style={{ background: C.card, borderRadius: 12, padding: 16, border: `1px solid ${C.border}` }}>
+        <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>По месяцам</div>
+        <div style={{ display: "grid", gridTemplateColumns: "auto 1fr 1fr 1fr 1fr 1fr", gap: "8px 16px", fontSize: 12, fontFamily: "'JetBrains Mono'" }}>
+          {/* Header */}
+          <div style={{ color: C.textMuted, fontSize: 11 }}></div>
+          <div style={{ color: C.textMuted, fontSize: 11, textAlign: "right" }}>Покер</div>
+          <div style={{ color: C.textMuted, fontSize: 11, textAlign: "right" }}>Бет (€)</div>
+          <div style={{ color: C.textMuted, fontSize: 11, textAlign: "right" }}>Часы</div>
+          <div style={{ color: C.textMuted, fontSize: 11, textAlign: "right" }}>$/ч</div>
+          <div style={{ color: C.textMuted, fontSize: 11, textAlign: "right" }}>Кэш</div>
+          {report.monthly.map(m => (
+            <React.Fragment key={m.label}>
+              <div style={{ color: C.text, fontWeight: 500 }}>{m.label}</div>
+              <div style={{ textAlign: "right", color: m.poker >= 0 ? C.green : C.red }}>{fmt(m.poker)}</div>
+              <div style={{ textAlign: "right", color: m.bettingEur >= 0 ? C.green : m.bettingEur < 0 ? C.red : C.textDim }}>
+                {m.bettingEur !== 0 ? `€${m.bettingEur.toLocaleString()}` : "—"}
+              </div>
+              <div style={{ textAlign: "right", color: C.textDim }}>{Math.round(m.hours)}</div>
+              <div style={{ textAlign: "right", color: C.blue }}>${Math.round(m.dph)}</div>
+              <div style={{ textAlign: "right", color: C.purple }}>{m.cashouts > 0 ? fmtPlain(m.cashouts) : "—"}</div>
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
+
+      {/* Monthly bars */}
+      <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
+        <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, paddingLeft: 6 }}>Покер по месяцам</div>
+        <ResponsiveContainer width="100%" height={160}>
+          <BarChart data={report.monthly}>
+            <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+            <XAxis dataKey="label" tick={{ fontSize: 12, fill: C.textMuted }} />
+            <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={45} />
+            <ReferenceLine y={0} stroke={C.border} />
+            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text }}
+              formatter={(v) => [fmtPlain(v), "Покер"]} />
+            <Bar dataKey="poker" radius={[4,4,0,0]}>
+              {report.monthly.map((m, i) => (
+                <Cell key={i} fill={m.poker >= 0 ? C.green : C.red} fillOpacity={0.8} />
               ))}
             </Bar>
           </BarChart>

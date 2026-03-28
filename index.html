@@ -130,6 +130,12 @@ const getLocalDate = () => {
 const dateToStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 const TODAY = getLocalDate();
 
+// Tooltip color helpers
+const tipMoney = (v, label) => [React.createElement('span', {style:{color: v >= 0 ? C.green : C.red}}, fmt(v)), label];
+const tipBlue = (v, label) => [React.createElement('span', {style:{color: C.blue}}, v), label];
+const tipPurple = (v, label) => [React.createElement('span', {style:{color: C.purple}}, typeof v === 'number' ? fmtPlain(v) : v), label];
+const tipGreen = (v, label) => [React.createElement('span', {style:{color: C.green}}, typeof v === 'number' ? fmtPlain(v) : v), label];
+
 // ─── MAIN COMPONENT ────────────────────────────────────────────────────────
 function PokerDashboard() {
   const [tab, setTab] = useState("dash");
@@ -1290,8 +1296,8 @@ function DashboardTab({ stats, bankrollPie, equityCurveRaw }) {
                 <XAxis dataKey="d" tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={d => d.slice(5)} interval="preserveStartEnd" />
                 <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={55}
                   domain={[Math.floor((minV-pad)/100)*100, Math.ceil((maxV+pad)/100)*100]} />
-                <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text, }} labelStyle={{ color: C.textDim }} itemStyle={{ color: C.text }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
-                  formatter={(v) => [fmtPlain(v), "Банкролл"]} labelFormatter={l => l} />
+                <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text, }} labelStyle={{ color: C.textDim }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                  formatter={(v) => tipGreen(v, "Банкролл")} labelFormatter={l => l} />
                 <Area type="monotone" dataKey="v" stroke={C.green} fill="url(#eqGrad)" strokeWidth={2} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
@@ -1311,8 +1317,8 @@ function DashboardTab({ stats, bankrollPie, equityCurveRaw }) {
               <Pie data={bankrollPie} dataKey="value" cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={2}>
                 {bankrollPie.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
               </Pie>
-              <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text, }} labelStyle={{ color: C.textDim }} itemStyle={{ color: C.text }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
-                formatter={(v) => fmtPlain(v)} />
+              <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text, }} labelStyle={{ color: C.textDim }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                formatter={(v) => [React.createElement("span", {style:{color: C.green}}, fmtPlain(v)), ""]} />
             </PieChart>
           </ResponsiveContainer>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px", justifyContent: "center" }}>
@@ -1427,8 +1433,8 @@ function ChartsTab({ stats, chartPeriod, setChartPeriod, customRange, setCustomR
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
                 <XAxis dataKey="d" tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={d => d.slice(2,7)} interval="preserveStartEnd" />
                 <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={55} domain={yDomain} />
-                <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text, }} labelStyle={{ color: C.textDim }} itemStyle={{ color: C.text }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
-                  formatter={(v) => [fmtPlain(v), "Итого"]} />
+                <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text, }} labelStyle={{ color: C.textDim }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                  formatter={(v) => tipGreen(v, "Итого")} />
                 <Area type="monotone" dataKey="v" stroke={C.green} fill="url(#eqGrad2)" strokeWidth={2} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
@@ -1444,8 +1450,8 @@ function ChartsTab({ stats, chartPeriod, setChartPeriod, customRange, setCustomR
             <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
             <XAxis dataKey="label" tick={{ fontSize: 10, fill: C.textMuted }} interval={0} angle={-45} textAnchor="end" height={50} />
             <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={50} />
-            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text, }} labelStyle={{ color: C.textDim }} itemStyle={{ color: C.text }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
-              formatter={(v) => [fmt(v), "Покер"]} itemStyle={{ color: C.text }} />
+            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text, }} labelStyle={{ color: C.textDim }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
+              formatter={(v) => tipMoney(v, "Покер")} />
             <ReferenceLine y={0} stroke={C.textMuted} strokeDasharray="3 3" />
             <Bar dataKey="result" radius={[4,4,0,0]}>
               {filteredMonthly.map((entry, i) => (
@@ -1464,8 +1470,8 @@ function ChartsTab({ stats, chartPeriod, setChartPeriod, customRange, setCustomR
             <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
             <XAxis dataKey="label" tick={{ fontSize: 10, fill: C.textMuted }} interval={0} angle={-45} textAnchor="end" height={50} />
             <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={v => `$${v.toFixed(0)}`} width={45} />
-            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text, }} labelStyle={{ color: C.textDim }} itemStyle={{ color: C.text }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
-              formatter={(v) => [`$${v.toFixed(1)}/ч`, "$/час"]} />
+            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text, }} labelStyle={{ color: C.textDim }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
+              formatter={(v) => tipBlue(`$${v.toFixed(1)}/ч`, "$/час")} />
             <ReferenceLine y={0} stroke={C.textMuted} strokeDasharray="3 3" />
             <Bar dataKey="dph" radius={[4,4,0,0]}>
               {filteredMonthly.map((entry, i) => (
@@ -1484,8 +1490,8 @@ function ChartsTab({ stats, chartPeriod, setChartPeriod, customRange, setCustomR
             <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
             <XAxis dataKey="label" tick={{ fontSize: 10, fill: C.textMuted }} interval={0} angle={-45} textAnchor="end" height={50} />
             <YAxis tick={{ fontSize: 10, fill: C.textMuted }} width={35} />
-            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text, }} labelStyle={{ color: C.textDim }} itemStyle={{ color: C.text }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
-              formatter={(v) => [`${v.toFixed(1)} ч`, "Часы"]} />
+            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text, }} labelStyle={{ color: C.textDim }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
+              formatter={(v) => tipBlue(`${v.toFixed(1)} ч`, "Часы")} />
             <Bar dataKey="hours" fill={C.blue} fillOpacity={0.6} radius={[4,4,0,0]} />
           </BarChart>
         </ResponsiveContainer>
@@ -1510,7 +1516,7 @@ function ChartsTab({ stats, chartPeriod, setChartPeriod, customRange, setCustomR
               <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={v => `€${v}`} width={50} />
               <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text }} labelStyle={{ color: C.textDim }}
                 labelFormatter={d => { const m = parseInt(d.slice(5,7))-1; return monthNames[m] + " " + d.slice(0,4); }}
-                formatter={(v) => [`€${v.toLocaleString()}`, "Итого"]} />
+                formatter={(v) => [React.createElement('span', {style:{color: C.gold}}, `€${v.toLocaleString()}`), "Итого"]} />
               <Area type="monotone" dataKey="v" stroke={C.gold} fill="rgba(234,179,8,0.15)" strokeWidth={2} dot={{ fill: C.gold, r: 3 }} />
             </AreaChart>
           </ResponsiveContainer>
@@ -1536,8 +1542,8 @@ function ChartsTab({ stats, chartPeriod, setChartPeriod, customRange, setCustomR
             <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
             <XAxis dataKey="label" tick={{ fontSize: 9, fill: C.textMuted }} interval={0} angle={-45} textAnchor="end" height={50} />
             <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={45} />
-            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text, }} labelStyle={{ color: C.textDim }} itemStyle={{ color: C.text }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
-              formatter={(v) => [fmtPlain(v), "Кэшаут"]} itemStyle={{ color: C.text }} />
+            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text, }} labelStyle={{ color: C.textDim }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
+              formatter={(v) => tipPurple(v, "Кэшаут")} />
             <Bar dataKey="v" fill={C.purple} fillOpacity={0.7} radius={[4,4,0,0]} />
           </BarChart>
         </ResponsiveContainer>
@@ -1582,9 +1588,9 @@ function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, 
               <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text }}
                 labelStyle={{ color: C.textDim }}
                 formatter={(v, name) => {
-                  if (name === "total") return [fmtPlain(v), "Всего ($)"];
-                  if (name === "poker") return [fmtPlain(v), "Покер ($)"];
-                  return [`€${v.toLocaleString()}`, "Беттинг (€)"];
+                  if (name === "total") return [React.createElement('span', {style:{color: C.green}}, fmtPlain(v)), "Всего ($)"];
+                  if (name === "poker") return [React.createElement('span', {style:{color: C.blue}}, fmtPlain(v)), "Покер ($)"];
+                  return [React.createElement('span', {style:{color: C.gold}}, `€${v.toLocaleString()}`), "Беттинг (€)"];
                 }} />
               <Area yAxisId="usd" type="monotone" dataKey="total" stroke={C.green} strokeWidth={2} fill="url(#brGrad)" name="total" dot={bankrollHistory.length < 60} />
               <Line yAxisId="usd" type="monotone" dataKey="poker" stroke={C.blue} strokeWidth={1.5} dot={false} name="poker" />
@@ -1603,8 +1609,8 @@ function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, 
               labelLine={{ stroke: C.textMuted }}>
               {bankrollPie.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
             </Pie>
-            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text }} labelStyle={{ color: C.textDim }} itemStyle={{ color: C.text }}
-              formatter={(v) => fmtPlain(v)} />
+            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text }} labelStyle={{ color: C.textDim }}
+              formatter={(v) => [React.createElement("span", {style:{color: C.green}}, fmtPlain(v)), ""]} />
           </PieChart>
         </ResponsiveContainer>
       </div>
@@ -1855,8 +1861,8 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
             <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
             <XAxis dataKey="day" tick={{ fontSize: 11, fill: C.textDim }} />
             <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={v => `$${v.toFixed(0)}`} width={50} />
-            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text, }} labelStyle={{ color: C.textDim }} itemStyle={{ color: C.text }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
-              formatter={(v, name) => [fmt(v, 0), name === "avgResult" ? "Средний" : name]} />
+            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text, }} labelStyle={{ color: C.textDim }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
+              formatter={(v, name) => tipMoney(v, name === "avgResult" ? "Средний" : name)} />
             <ReferenceLine y={0} stroke={C.textMuted} strokeDasharray="3 3" />
             <Bar dataKey="avgResult" name="Средний результат" radius={[4,4,0,0]}>
               {byDow.map((entry, i) => (
@@ -1875,12 +1881,13 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
             <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
             <XAxis dataKey="year" tick={{ fontSize: 12, fill: C.textDim }} />
             <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={55} />
-            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text, }} labelStyle={{ color: C.textDim }} itemStyle={{ color: C.text }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
+            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text, }} labelStyle={{ color: C.textDim }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
               formatter={(v, name, props) => {
                 const d = props.payload;
-                const parts = [`Покер: ${fmt(d.poker)}`];
-                if (d.bettingEur) parts.push(`Бет: €${d.bettingEur.toLocaleString()}`);
-                return [parts.join(" · "), ""];
+                const parts = [];
+                parts.push(React.createElement('span', {style:{color: d.poker >= 0 ? C.green : C.red}}, `Покер: ${fmt(d.poker)}`));
+                if (d.bettingEur) parts.push(React.createElement('span', {style:{color: C.gold}}, ` · Бет: €${d.bettingEur.toLocaleString()}`));
+                return [React.createElement('span', null, ...parts), ""];
               }} />
             <Bar dataKey="poker" radius={[6,6,0,0]}>
               {yearData.map((entry, i) => (
@@ -1934,8 +1941,8 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
             <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
             <XAxis dataKey="month" tick={{ fontSize: 9, fill: C.textDim }} interval={0} angle={-45} textAnchor="end" height={50} />
             <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={55} />
-            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text }} labelStyle={{ color: C.textDim }} itemStyle={{ color: C.text }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
-              formatter={(v) => [fmt(v), "Итого"]} />
+            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text }} labelStyle={{ color: C.textDim }} cursor={{ fill: "rgba(255,255,255,0.05)" }}
+              formatter={(v) => tipMoney(v, "Итого")} />
             <ReferenceLine y={0} stroke={C.textMuted} strokeDasharray="3 3" />
             <Bar dataKey="result" name="Итого" radius={[4,4,0,0]}>
               {byCalMonth.map((entry, i) => (
@@ -1969,7 +1976,7 @@ function ReportsTab({ sessions, cashouts, betting, monthlyPre }) {
       const q = Math.ceil(m / 3);
       qSet.add(`${y}-Q${q}`);
     });
-    return [...qSet].filter(q => q >= "2017-Q1").sort().reverse();
+    return [...qSet].filter(q => q >= "2020-Q2").sort().reverse();
   }, [allData]);
 
   // Auto-select current quarter
@@ -2166,7 +2173,7 @@ function ReportsTab({ sessions, cashouts, betting, monthlyPre }) {
             <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={45} />
             <ReferenceLine y={0} stroke={C.border} />
             <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text }}
-              formatter={(v) => [fmtPlain(v), "Покер"]} itemStyle={{ color: C.text }} />
+              formatter={(v) => tipMoney(v, "Покер")} />
             <Bar dataKey="poker" radius={[4,4,0,0]}>
               {report.monthly.map((m, i) => (
                 <Cell key={i} fill={m.poker >= 0 ? C.green : C.red} fillOpacity={0.8} />
@@ -2213,7 +2220,7 @@ function ReportsTab({ sessions, cashouts, betting, monthlyPre }) {
                   <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={45} />
                   <ReferenceLine y={0} stroke={C.border} />
                   <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text }}
-                    formatter={(v) => [fmt(v), "Покер"]} itemStyle={{ color: C.text }} />
+                    formatter={(v) => tipMoney(v, "Покер")} />
                   <Bar dataKey="poker" radius={[3,3,0,0]}>
                     {allQ.map((q, i) => <Cell key={i} fill={q.poker >= 0 ? C.green : C.red} fillOpacity={0.8} />)}
                   </Bar>
@@ -2230,7 +2237,7 @@ function ReportsTab({ sessions, cashouts, betting, monthlyPre }) {
                   <XAxis dataKey="q" tick={{ fontSize: 9, fill: C.textMuted }} interval={0} angle={-45} textAnchor="end" height={40} />
                   <YAxis tick={{ fontSize: 10, fill: C.textMuted }} width={40} />
                   <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text }}
-                    formatter={(v) => [`${v}ч`, "Часы"]} itemStyle={{ color: C.text }} />
+                    formatter={(v) => tipBlue(`${v}ч`, "Часы")} />
                   <Bar dataKey="hours" radius={[3,3,0,0]} fill={C.blue} fillOpacity={0.7} />
                 </BarChart>
               </ResponsiveContainer>
@@ -2245,7 +2252,7 @@ function ReportsTab({ sessions, cashouts, betting, monthlyPre }) {
                   <XAxis dataKey="q" tick={{ fontSize: 10, fill: C.textMuted }} interval={0} />
                   <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={45} />
                   <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.text }}
-                    formatter={(v) => [fmtPlain(v), "Кэшаут"]} itemStyle={{ color: C.text }} />
+                    formatter={(v) => tipPurple(v, "Кэшаут")} />
                   <Bar dataKey="cashout" radius={[3,3,0,0]} fill={C.purple} fillOpacity={0.7} />
                 </BarChart>
               </ResponsiveContainer>

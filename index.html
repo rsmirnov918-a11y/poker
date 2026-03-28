@@ -1969,7 +1969,7 @@ function ReportsTab({ sessions, cashouts, betting, monthlyPre }) {
       const q = Math.ceil(m / 3);
       qSet.add(`${y}-Q${q}`);
     });
-    return [...qSet].sort().reverse();
+    return [...qSet].filter(q => q >= "2017-Q1").sort().reverse();
   }, [allData]);
 
   // Auto-select current quarter

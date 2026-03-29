@@ -1254,7 +1254,10 @@ function MetricCard({ label, value, sub, color, small }) {
 
 // ─── DASHBOARD TAB ──────────────────────────────────────────────────────────
 function DashboardTab({ stats, bankrollPie, equityCurveRaw }) {
-  const recentEquity = equityCurveRaw.slice(-90);
+  const recentEquity = useMemo(() => {
+    const cutoff = dateToStr(new Date(Date.now() - 90 * 86400000));
+    return equityCurveRaw.filter(p => p.d >= cutoff);
+  }, [equityCurveRaw]);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Top metrics */}

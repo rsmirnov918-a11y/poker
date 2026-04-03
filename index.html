@@ -1586,11 +1586,11 @@ function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, 
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
               <XAxis dataKey="d" tick={{ fontSize: 9, fill: C.textMuted }} tickFormatter={d => d.slice(5)} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={50} />
+              <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={50} domain={["dataMin", "dataMax"]} />
               <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text }}
                 labelStyle={{ color: C.textDim }}
                 formatter={(v) => tipGreen(v, "Всего")} />
-              <Area type="monotone" dataKey="total" stroke={C.green} strokeWidth={2} fill="url(#brGradTotal)" dot={bankrollHistory.length < 60} />
+              <Area type="monotone" dataKey="total" stroke={C.green} strokeWidth={2} fill="url(#brGradTotal)" baseValue="dataMin" dot={bankrollHistory.length < 60} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -1608,11 +1608,11 @@ function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, 
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
               <XAxis dataKey="d" tick={{ fontSize: 9, fill: C.textMuted }} tickFormatter={d => d.slice(5)} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={50} />
+              <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={50} domain={["dataMin", "dataMax"]} />
               <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text }}
                 labelStyle={{ color: C.textDim }}
                 formatter={(v) => [React.createElement('span', {style:{color: C.blue}}, fmtPlain(v)), "Покер"]} />
-              <Area type="monotone" dataKey="poker" stroke={C.blue} strokeWidth={2} fill="url(#brGradPoker)" dot={bankrollHistory.length < 60} />
+              <Area type="monotone" dataKey="poker" stroke={C.blue} strokeWidth={2} fill="url(#brGradPoker)" baseValue="dataMin" dot={bankrollHistory.length < 60} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -1630,11 +1630,11 @@ function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, 
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
               <XAxis dataKey="d" tick={{ fontSize: 9, fill: C.textMuted }} tickFormatter={d => d.slice(5)} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 10, fill: C.gold }} tickFormatter={v => `€${(v/1000).toFixed(1)}k`} width={45} />
+              <YAxis tick={{ fontSize: 10, fill: C.gold }} tickFormatter={v => `€${(v/1000).toFixed(1)}k`} width={45} domain={["dataMin", "dataMax"]} />
               <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text }}
                 labelStyle={{ color: C.textDim }}
                 formatter={(v) => [React.createElement('span', {style:{color: C.gold}}, `€${v.toLocaleString()}`), "Беттинг"]} />
-              <Area type="monotone" dataKey="betEur" stroke={C.gold} strokeWidth={2} fill="url(#brGradBet)" dot={bankrollHistory.length < 60} />
+              <Area type="monotone" dataKey="betEur" stroke={C.gold} strokeWidth={2} fill="url(#brGradBet)" baseValue="dataMin" dot={bankrollHistory.length < 60} />
             </AreaChart>
           </ResponsiveContainer>
         </div>

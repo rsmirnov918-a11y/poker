@@ -1569,40 +1569,76 @@ function BankrollTab({ bankroll, bankrollPie, total, cashouts, bettingBankroll, 
           sub={`≈ ${fmtPlain(Math.round(bettingBankroll * eurUsd))}`} />
       </div>
 
-      {bankrollHistory.length > 0 && (
+      {bankrollHistory.length > 0 && (<React.Fragment>
+        {/* Total bankroll */}
         <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingLeft: 6, marginBottom: 8 }}>
-            <div style={{ fontSize: 13, fontWeight: 500 }}>Банкролл (ежедневный трекинг)</div>
+            <div style={{ fontSize: 13, fontWeight: 500 }}>Общий банкролл ($)</div>
             <div style={{ fontSize: 11, color: C.textMuted }}>{bankrollHistory.length} дн</div>
           </div>
-          <ResponsiveContainer width="100%" height={260}>
-            <ComposedChart data={bankrollHistory} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart data={bankrollHistory} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
               <defs>
-                <linearGradient id="brGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={C.green} stopOpacity={0.15} />
+                <linearGradient id="brGradTotal" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={C.green} stopOpacity={0.2} />
                   <stop offset="100%" stopColor={C.green} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-              <XAxis dataKey="d" tick={{ fontSize: 9, fill: C.textMuted }}
-                tickFormatter={d => d.slice(5)} interval="preserveStartEnd" />
-              <YAxis yAxisId="usd" tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={50} />
-              <YAxis yAxisId="eur" orientation="right" tick={{ fontSize: 10, fill: C.gold }}
-                tickFormatter={v => `€${(v/1000).toFixed(1)}k`} width={45} />
+              <XAxis dataKey="d" tick={{ fontSize: 9, fill: C.textMuted }} tickFormatter={d => d.slice(5)} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={50} />
               <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text }}
                 labelStyle={{ color: C.textDim }}
-                formatter={(v, name) => {
-                  if (name === "total") return [React.createElement('span', {style:{color: C.green}}, fmtPlain(v)), "Всего ($)"];
-                  if (name === "poker") return [React.createElement('span', {style:{color: C.blue}}, fmtPlain(v)), "Покер ($)"];
-                  return [React.createElement('span', {style:{color: C.gold}}, `€${v.toLocaleString()}`), "Беттинг (€)"];
-                }} />
-              <Area yAxisId="usd" type="monotone" dataKey="total" stroke={C.green} strokeWidth={2} fill="url(#brGrad)" name="total" dot={bankrollHistory.length < 60} />
-              <Line yAxisId="usd" type="monotone" dataKey="poker" stroke={C.blue} strokeWidth={1.5} dot={false} name="poker" />
-              <Line yAxisId="eur" type="monotone" dataKey="betEur" stroke={C.gold} strokeWidth={1.5} dot={false} name="betEur" />
-            </ComposedChart>
+                formatter={(v) => tipGreen(v, "Всего")} />
+              <Area type="monotone" dataKey="total" stroke={C.green} strokeWidth={2} fill="url(#brGradTotal)" dot={bankrollHistory.length < 60} />
+            </AreaChart>
           </ResponsiveContainer>
         </div>
-      )}
+
+        {/* Poker bankroll */}
+        <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, paddingLeft: 6 }}>Банкролл покер ($)</div>
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart data={bankrollHistory} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
+              <defs>
+                <linearGradient id="brGradPoker" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={C.blue} stopOpacity={0.2} />
+                  <stop offset="100%" stopColor={C.blue} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="d" tick={{ fontSize: 9, fill: C.textMuted }} tickFormatter={d => d.slice(5)} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={fmtK} width={50} />
+              <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text }}
+                labelStyle={{ color: C.textDim }}
+                formatter={(v) => [React.createElement('span', {style:{color: C.blue}}, fmtPlain(v)), "Покер"]} />
+              <Area type="monotone" dataKey="poker" stroke={C.blue} strokeWidth={2} fill="url(#brGradPoker)" dot={bankrollHistory.length < 60} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Betting bankroll */}
+        <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, paddingLeft: 6 }}>Банкролл беттинг (€)</div>
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart data={bankrollHistory} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
+              <defs>
+                <linearGradient id="brGradBet" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={C.gold} stopOpacity={0.2} />
+                  <stop offset="100%" stopColor={C.gold} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="d" tick={{ fontSize: 9, fill: C.textMuted }} tickFormatter={d => d.slice(5)} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 10, fill: C.gold }} tickFormatter={v => `€${(v/1000).toFixed(1)}k`} width={45} />
+              <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text }}
+                labelStyle={{ color: C.textDim }}
+                formatter={(v) => [React.createElement('span', {style:{color: C.gold}}, `€${v.toLocaleString()}`), "Беттинг"]} />
+              <Area type="monotone" dataKey="betEur" stroke={C.gold} strokeWidth={2} fill="url(#brGradBet)" dot={bankrollHistory.length < 60} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </React.Fragment>)}
 
       <div style={{ background: C.card, borderRadius: 12, padding: 20, border: `1px solid ${C.border}` }}>
         <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>Распределение банкролла</div>

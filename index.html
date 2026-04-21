@@ -218,18 +218,21 @@ function PokerDashboard() {
     }, 1000);
   }, [firestoreOk, bankroll, bettingBR, eurUsd, newSessions, newBettingEntries, newCashouts, bankrollHistory]);
 
-  // Auto-fetch EUR/USD rate
+  // Auto-fetch EUR/USD rate (after Firestore load)
   useEffect(() => {
+    if (!firestoreOk) return;
     (async () => {
       try {
         const res = await fetch("https://open.er-api.com/v6/latest/EUR");
         const data = await res.json();
         if (data?.rates?.USD) {
-          setEurUsd(Math.round(data.rates.USD * 1000) / 1000);
+          const fresh = Math.round(data.rates.USD * 1000) / 1000;
+          console.log("[RATE] Fetched EUR/USD:", fresh);
+          setEurUsd(fresh);
         }
-      } catch(e) {}
+      } catch(e) { console.warn("[RATE] Fetch failed:", e.message); }
     })();
-  }, []);
+  }, [firestoreOk]);
 
   // Record daily bankroll snapshot
   useEffect(() => {

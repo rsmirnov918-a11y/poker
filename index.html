@@ -523,6 +523,7 @@ function PokerDashboard() {
     { id: "bankroll", label: "\u0411\u0430\u043d\u043a\u0440\u043e\u043b\u043b", icon: "\u25cb" },
     { id: "stats", label: "\u0421\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043a\u0430", icon: "\u2261" },
     { id: "reports", label: "\u041e\u0442\u0447\u0451\u0442\u044b", icon: "\u25a3" },
+    { id: "goals", label: "\u0426\u0435\u043b\u0438", icon: "\u25b2" },
   ];
 
   // ─── EXPORT CSV ────────────────────────────────────────────────────────
@@ -648,6 +649,7 @@ function PokerDashboard() {
         {tab === "stats" && <StatsTab stats={stats} sessions={dailySessions} statsPeriod={statsPeriod} setStatsPeriod={setStatsPeriod}
           customRange={customRange} setCustomRange={setCustomRange} cashouts={allCashouts} />}
         {tab === "reports" && <ReportsTab sessions={dailySessions} cashouts={allCashouts} betting={allBetting} monthlyPre={monthlyPre} />}
+        {tab === "goals" && <GoalsTab bankroll={bankroll} bettingBR={bettingBR} eurUsd={eurUsd} betting={allBetting} />}
       </div>
     </div>
   );
@@ -2311,6 +2313,136 @@ function ReportsTab({ sessions, cashouts, betting, monthlyPre }) {
           </React.Fragment>
         );
       })()}
+    </div>
+  );
+}
+
+// ─── GOALS TAB ──────────────────────────────────────────────────────────────
+function GoalsTab({ bankroll, bettingBR, eurUsd, betting }) {
+  const [subtab, setSubtab] = useState("progress"); // "progress" | "benchmarks"
+
+  // Current values
+  const pokerTotal = Object.values(bankroll).reduce((s,v) => s+v, 0);
+  const totalBankrollUsd = pokerTotal + Math.round(bettingBR * eurUsd);
+
+  // Current calendar year betting income (in EUR)
+  const currentYear = new Date().getFullYear();
+  const yearBettingEur = betting
+    .filter(b => b.d.startsWith(String(currentYear)))
+    .reduce((s,x) => s+x.v, 0);
+
+  // Goals
+  const GOAL_BANKROLL = 200000;
+  const GOAL_BETTING_YEAR = 50000;
+
+  const bankrollPct = Math.min(100, (totalBankrollUsd / GOAL_BANKROLL) * 100);
+  const bettingPct = Math.max(0, Math.min(100, (yearBettingEur / GOAL_BETTING_YEAR) * 100));
+
+  const ProgressBar = ({ label, current, goal, pct, currentStr, goalStr, color }) => (
+    <div style={{ background: C.card, borderRadius: 12, padding: 20, border: `1px solid ${C.border}` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+        <div style={{ fontSize: 14, fontWeight: 500, color: C.text }}>{label}</div>
+        <div style={{ fontSize: 12, color: C.textMuted }}>{pct.toFixed(1)}%</div>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10, fontFamily: "'JetBrains Mono'" }}>
+        <div style={{ fontSize: 22, fontWeight: 600, color }}>{currentStr}</div>
+        <div style={{ fontSize: 13, color: C.textDim }}>цель: {goalStr}</div>
+      </div>
+      <div style={{ height: 10, background: "#0f1923", borderRadius: 5, overflow: "hidden", position: "relative" }}>
+        <div style={{
+          width: `${pct}%`, height: "100%",
+          background: `linear-gradient(90deg, ${color}, ${color}cc)`,
+          borderRadius: 5, transition: "width 0.5s ease",
+        }} />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 11, color: C.textMuted, fontFamily: "'JetBrains Mono'" }}>
+        <span>0</span>
+        <span>осталось: {goal - current >= 0 ? (goal - current).toLocaleString() : "✓ достигнуто"}</span>
+        <span>{goal.toLocaleString()}</span>
+      </div>
+    </div>
+  );
+
+  const benchSection = (title, items) => (
+    <div style={{ background: C.card, borderRadius: 12, padding: 20, border: `1px solid ${C.border}` }}>
+      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 14, color: C.text }}>{title}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+        {items.map((it, i) => (
+          <div key={i} style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            padding: "10px 0", borderBottom: i === items.length - 1 ? "none" : `1px solid ${C.border}`,
+          }}>
+            <span style={{ fontSize: 13, color: C.textDim }}>{it.label}</span>
+            <span style={{ fontSize: 14, fontWeight: 500, fontFamily: "'JetBrains Mono'", color: it.color || C.text }}>{it.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Subtab switcher */}
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={() => setSubtab("progress")} style={{
+          flex: 1, padding: "10px 16px", border: `1px solid ${subtab === "progress" ? C.green : C.border}`,
+          borderRadius: 8, cursor: "pointer", fontSize: 13, fontFamily: "inherit", fontWeight: subtab === "progress" ? 600 : 400,
+          background: subtab === "progress" ? C.greenBg : "transparent",
+          color: subtab === "progress" ? C.green : C.textDim,
+        }}>Прогресс</button>
+        <button onClick={() => setSubtab("benchmarks")} style={{
+          flex: 1, padding: "10px 16px", border: `1px solid ${subtab === "benchmarks" ? C.blue : C.border}`,
+          borderRadius: 8, cursor: "pointer", fontSize: 13, fontFamily: "inherit", fontWeight: subtab === "benchmarks" ? 600 : 400,
+          background: subtab === "benchmarks" ? "rgba(59,130,246,0.1)" : "transparent",
+          color: subtab === "benchmarks" ? C.blue : C.textDim,
+        }}>Ориентиры</button>
+      </div>
+
+      {subtab === "progress" && (
+        <React.Fragment>
+          <ProgressBar
+            label="Банкролл"
+            current={totalBankrollUsd}
+            goal={GOAL_BANKROLL}
+            pct={bankrollPct}
+            currentStr={fmtPlain(totalBankrollUsd)}
+            goalStr={fmtPlain(GOAL_BANKROLL)}
+            color={C.green}
+          />
+          <ProgressBar
+            label={`Доход беттинга (${currentYear})`}
+            current={yearBettingEur}
+            goal={GOAL_BETTING_YEAR}
+            pct={bettingPct}
+            currentStr={`€${yearBettingEur.toLocaleString()}`}
+            goalStr={`€${GOAL_BETTING_YEAR.toLocaleString()}`}
+            color={C.gold}
+          />
+          <div style={{ background: C.card, borderRadius: 12, padding: 16, border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.6 }}>
+              Прогресс отслеживается автоматически: банкролл = покер $ + беттинг €×курс,
+              доход беттинга — сумма результатов с {currentYear}-01-01.
+            </div>
+          </div>
+        </React.Fragment>
+      )}
+
+      {subtab === "benchmarks" && (
+        <React.Fragment>
+          {benchSection("Покер", [
+            { label: "Среднее количество рук в час", value: "278+", color: C.blue },
+            { label: "Часов в год", value: "1800", color: C.blue },
+            { label: "Средний лимит", value: "NL320+", color: C.blue },
+            { label: "Вин-рейт", value: "12bb/100+", color: C.green },
+          ])}
+          {benchSection("Беттинг", [
+            { label: "Оборот в год", value: "$1.5M+", color: C.gold },
+            { label: "Количество ставок в год", value: "10k+", color: C.gold },
+            { label: "CLV", value: "5%+", color: C.green },
+            { label: "Positive CLV", value: "70%+", color: C.green },
+          ])}
+        </React.Fragment>
+      )}
     </div>
   );
 }

@@ -166,7 +166,16 @@ function PokerDashboard() {
     DOC_REF.get().then(doc => {
       if (doc.exists) {
         const d = doc.data();
-        if (d.bankroll) setBankroll(d.bankroll);
+        if (d.bankroll) {
+          // One-time fix: restore USDT to 1100
+          const FIX_KEY = "usdt_fix_2026_04_v2";
+          if (!localStorage.getItem(FIX_KEY)) {
+            d.bankroll.USDT = 1100;
+            localStorage.setItem(FIX_KEY, "1");
+            console.log("[FIX] USDT set to 1100");
+          }
+          setBankroll(d.bankroll);
+        }
         if (d.eurUsd) setEurUsd(d.eurUsd);
         if (d.newSessions) setNewSessions(d.newSessions.filter(s => s.h > 0 || s.r !== 0));
         if (d.newCashouts) setNewCashouts(d.newCashouts);

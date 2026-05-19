@@ -166,16 +166,7 @@ function PokerDashboard() {
     DOC_REF.get().then(doc => {
       if (doc.exists) {
         const d = doc.data();
-        if (d.bankroll) {
-          // One-time fix: restore USDT to 1100 (cashout deleted without bankroll restoration)
-          const FIX_KEY = "usdt_fix_2026_04";
-          if (!localStorage.getItem(FIX_KEY)) {
-            d.bankroll.USDT = 1100;
-            localStorage.setItem(FIX_KEY, "1");
-            console.log("[FIX] USDT restored to 1100");
-          }
-          setBankroll(d.bankroll);
-        }
+        if (d.bankroll) setBankroll(d.bankroll);
         if (d.eurUsd) setEurUsd(d.eurUsd);
         if (d.newSessions) setNewSessions(d.newSessions.filter(s => s.h > 0 || s.r !== 0));
         if (d.newCashouts) setNewCashouts(d.newCashouts);
@@ -795,7 +786,7 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
   const submitCashout = () => {
     const amount = parseFloat(cashoutAmount);
     if (!amount || amount <= 0) return;
-    const entry = { d: cashoutDate, v: amount, src: cashoutSource };
+    const entry = { d: cashoutDate, v: amount };
     saveNewCashouts([...newCashouts, entry]);
     // Deduct from selected room
     const updatedBR = { ...bankroll, [cashoutSource]: (bankroll[cashoutSource] || 0) - amount };
@@ -807,16 +798,8 @@ function InputTab({ bankroll, saveBankroll, bettingBR, saveBettingBR, eurUsd, sa
   };
 
   const deleteCashout = () => {
-    const last = newCashouts[newCashouts.length - 1];
-    if (!last) return;
     const updated = newCashouts.slice(0, -1);
     saveNewCashouts(updated);
-    // Restore bankroll if source room is known
-    if (last.src) {
-      const updatedBR = { ...bankroll, [last.src]: (bankroll[last.src] || 0) + last.v };
-      saveBankroll(updatedBR);
-      setRoomValues(updatedBR);
-    }
   };
 
   const inputStyle = {

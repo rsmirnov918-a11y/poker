@@ -651,7 +651,7 @@ function PokerDashboard() {
           betting={betting} allCashouts={allCashouts} />}
         {tab === "charts" && <ChartsTab stats={stats} chartPeriod={chartPeriod} setChartPeriod={setChartPeriod}
           customRange={customRange} setCustomRange={setCustomRange}
-          filteredEquity={filteredEquity} filteredMonthly={filteredMonthly} cashouts={allCashouts} />}
+          filteredEquity={filteredEquity} filteredMonthly={filteredMonthly} cashouts={allCashouts} sessions={dailySessions} />}
         {tab === "bankroll" && <BankrollTab bankroll={bankroll} bankrollPie={bankrollPie} total={stats.bankrollPoker}
           cashouts={allCashouts} bettingBankroll={bettingBR} eurUsd={eurUsd}
           bankrollHistory={bankrollHistory} />}
@@ -1435,7 +1435,46 @@ function StatRow({ label, value, color, sub }) {
 }
 
 // ─── CHARTS TAB ─────────────────────────────────────────────────────────────
-function ChartsTab({ stats, chartPeriod, setChartPeriod, customRange, setCustomRange, filteredEquity, filteredMonthly, cashouts }) {
+function ChartsTab({ stats, chartPeriod, setChartPeriod, customRange, setCustomRange, filteredEquity, filteredMonthly, cashouts, sessions }) {
+  const [dphMode, setDphMode] = useState("cumulative"); // "cumulative" | "quarterly"
+
+  // $/hour dynamics
+  const dphData = useMemo(() => {
+    if (!sessions || !sessions.length) return { cumulative: [], quarterly: [] };
+    const sorted = [...sessions].filter(s => s.h > 0).sort((a,b) => a.d.localeCompare(b.d));
+
+    // Cumulative: running $/h at each session, displayed from end of Q2 2020
+    let runR = 0, runH = 0;
+    const cumulative = [];
+    sorted.forEach(s => {
+      runR += s.r;
+      runH += s.h;
+      if (s.d >= "2020-07-01" && runH > 0) {
+        cumulative.push({ d: s.d, v: Math.round((runR / runH) * 10) / 10 });
+      }
+    });
+
+    // Quarterly: $/h per quarter
+    const qMap = {};
+    sorted.forEach(s => {
+      const y = s.d.slice(0,4);
+      const q = Math.ceil(parseInt(s.d.slice(5,7)) / 3);
+      const key = `${y}-Q${q}`;
+      if (!qMap[key]) qMap[key] = { r: 0, h: 0 };
+      qMap[key].r += s.r;
+      qMap[key].h += s.h;
+    });
+    const quarterly = Object.entries(qMap)
+      .sort(([a],[b]) => a.localeCompare(b))
+      .filter(([,v]) => v.h > 0)
+      .map(([k, v]) => ({
+        q: `Q${k.slice(6)} ${k.slice(2,4)}`,
+        v: Math.round((v.r / v.h) * 10) / 10,
+      }));
+
+    return { cumulative, quarterly };
+  }, [sessions]);
+
   const periods = [
     { id: "all", label: "Всё" }, { id: "3y", label: "3 года" }, { id: "1y", label: "1 год" },
     { id: "6m", label: "6 мес" }, { id: "3m", label: "3 мес" }, { id: "custom", label: "⚙" },
@@ -1550,6 +1589,63 @@ function ChartsTab({ stats, chartPeriod, setChartPeriod, customRange, setCustomR
               ))}
             </Bar>
           </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* $/hour dynamics */}
+      <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, paddingLeft: 6, paddingRight: 6 }}>
+          <div style={{ fontSize: 13, fontWeight: 500 }}>Динамика $/час</div>
+          <div style={{ display: "flex", gap: 4 }}>
+            <button onClick={() => setDphMode("cumulative")} style={{
+              padding: "5px 12px", border: `1px solid ${dphMode === "cumulative" ? C.blue : C.border}`,
+              borderRadius: 6, cursor: "pointer", fontSize: 11, fontFamily: "inherit",
+              background: dphMode === "cumulative" ? "rgba(59,130,246,0.1)" : "transparent",
+              color: dphMode === "cumulative" ? C.blue : C.textDim,
+            }}>Накопительный</button>
+            <button onClick={() => setDphMode("quarterly")} style={{
+              padding: "5px 12px", border: `1px solid ${dphMode === "quarterly" ? C.blue : C.border}`,
+              borderRadius: 6, cursor: "pointer", fontSize: 11, fontFamily: "inherit",
+              background: dphMode === "quarterly" ? "rgba(59,130,246,0.1)" : "transparent",
+              color: dphMode === "quarterly" ? C.blue : C.textDim,
+            }}>Поквартально</button>
+          </div>
+        </div>
+        <ResponsiveContainer width="100%" height={220}>
+          {dphMode === "cumulative" ? (
+            <AreaChart data={dphData.cumulative} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
+              <defs>
+                <linearGradient id="dphGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={C.blue} stopOpacity={0.2} />
+                  <stop offset="100%" stopColor={C.blue} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="d" tick={{ fontSize: 9, fill: C.textMuted }}
+                tickFormatter={d => { const m = parseInt(d.slice(5,7))-1; return monthNames[m] + " " + d.slice(2,4); }}
+                interval="preserveStartEnd" minTickGap={50} />
+              <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={v => `$${v}`} width={45} domain={["auto", "auto"]} />
+              <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text }}
+                labelStyle={{ color: C.textDim }}
+                formatter={(v) => tipDph(v, "$/час (накоп.)")} />
+              <Area type="monotone" dataKey="v" stroke={C.blue} strokeWidth={2} fill="url(#dphGrad)" dot={false} />
+            </AreaChart>
+          ) : (
+            <BarChart data={dphData.quarterly} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="q" tick={{ fontSize: 9, fill: C.textMuted }} interval={0} angle={-45} textAnchor="end" height={40} />
+              <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={v => `$${v}`} width={45} />
+              <ReferenceLine y={0} stroke={C.border} />
+              <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text }}
+                labelStyle={{ color: C.textDim }}
+                formatter={(v) => tipDph(v, "$/час")} />
+              <Bar dataKey="v" radius={[4,4,0,0]}>
+                {dphData.quarterly.map((entry, i) => (
+                  <Cell key={i} fill={entry.v >= 0 ? C.blue : C.red} fillOpacity={0.75} />
+                ))}
+              </Bar>
+            </BarChart>
+          )}
         </ResponsiveContainer>
       </div>
 

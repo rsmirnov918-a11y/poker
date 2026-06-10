@@ -2106,6 +2106,7 @@ function StatsTab({ stats, sessions, statsPeriod, setStatsPeriod, customRange, s
 // ─── REPORTS TAB ────────────────────────────────────────────────────────────
 function ReportsTab({ sessions, cashouts, betting, monthlyPre }) {
   const [selectedQ, setSelectedQ] = useState(null);
+  const [dphPeriod, setDphPeriod] = useState("quarter"); // "quarter" | "year"
 
   // Combine all data sources (monthly pre + daily sessions)
   const allData = useMemo(() => {
@@ -2398,27 +2399,61 @@ function ReportsTab({ sessions, cashouts, betting, monthlyPre }) {
               </ResponsiveContainer>
             </div>
 
-            {/* $/hour by quarter */}
-            <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
-              <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, paddingLeft: 6 }}>$/час по кварталам</div>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={hoursQ.map(q => ({ ...q, dph: q.hours > 0 ? Math.round((q.poker / q.hours) * 10) / 10 : 0 }))} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-                  <XAxis dataKey="q" tick={{ fontSize: 9, fill: C.textMuted }} interval={0} angle={-45} textAnchor="end" height={40} />
-                  <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={v => `$${v}`} width={45} />
-                  <ReferenceLine y={0} stroke={C.border} />
-                  <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text }}
-                    labelStyle={{ color: C.textDim }}
-                    formatter={(v) => tipDph(v, "$/час")} />
-                  <Bar dataKey="dph" radius={[3,3,0,0]}>
-                    {hoursQ.map((q, i) => {
-                      const dph = q.hours > 0 ? q.poker / q.hours : 0;
-                      return <Cell key={i} fill={dph >= 0 ? C.blue : C.red} fillOpacity={0.75} />;
-                    })}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            {/* $/hour by quarter / year */}
+            {(() => {
+              const dphQ = hoursQ.map(q => ({ ...q, dph: q.hours > 0 ? Math.round((q.poker / q.hours) * 10) / 10 : 0 }));
+              // Aggregate by year
+              const yMap = {};
+              hoursQ.forEach(q => {
+                const year = "20" + q.q.slice(-2);
+                if (!yMap[year]) yMap[year] = { poker: 0, hours: 0 };
+                yMap[year].poker += q.poker;
+                yMap[year].hours += q.hours;
+              });
+              const dphY = Object.entries(yMap)
+                .sort(([a],[b]) => a.localeCompare(b))
+                .map(([y, v]) => ({ q: y, dph: v.hours > 0 ? Math.round((v.poker / v.hours) * 10) / 10 : 0, hours: v.hours, poker: v.poker }));
+              const data = dphPeriod === "quarter" ? dphQ : dphY;
+              return (
+                <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, paddingLeft: 6, paddingRight: 6 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500 }}>$/час</div>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <button onClick={() => setDphPeriod("quarter")} style={{
+                        padding: "5px 12px", border: `1px solid ${dphPeriod === "quarter" ? C.blue : C.border}`,
+                        borderRadius: 6, cursor: "pointer", fontSize: 11, fontFamily: "inherit",
+                        background: dphPeriod === "quarter" ? "rgba(59,130,246,0.1)" : "transparent",
+                        color: dphPeriod === "quarter" ? C.blue : C.textDim,
+                      }}>По кварталам</button>
+                      <button onClick={() => setDphPeriod("year")} style={{
+                        padding: "5px 12px", border: `1px solid ${dphPeriod === "year" ? C.blue : C.border}`,
+                        borderRadius: 6, cursor: "pointer", fontSize: 11, fontFamily: "inherit",
+                        background: dphPeriod === "year" ? "rgba(59,130,246,0.1)" : "transparent",
+                        color: dphPeriod === "year" ? C.blue : C.textDim,
+                      }}>По годам</button>
+                    </div>
+                  </div>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={data} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                      <XAxis dataKey="q" tick={{ fontSize: dphPeriod === "quarter" ? 9 : 11, fill: C.textMuted }} interval={0}
+                        angle={dphPeriod === "quarter" ? -45 : 0} textAnchor={dphPeriod === "quarter" ? "end" : "middle"}
+                        height={dphPeriod === "quarter" ? 40 : 25} />
+                      <YAxis tick={{ fontSize: 10, fill: C.textMuted }} tickFormatter={v => `$${v}`} width={45} />
+                      <ReferenceLine y={0} stroke={C.border} />
+                      <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontFamily: "'JetBrains Mono'", color: C.text }}
+                        labelStyle={{ color: C.textDim }}
+                        formatter={(v) => tipDph(v, "$/час")} />
+                      <Bar dataKey="dph" radius={[3,3,0,0]}>
+                        {data.map((q, i) => (
+                          <Cell key={i} fill={q.dph >= 0 ? C.blue : C.red} fillOpacity={0.75} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              );
+            })()}
 
             {/* Cashouts by quarter (from Q2 2024) */}
             <div style={{ background: C.card, borderRadius: 12, padding: "16px 12px 8px", border: `1px solid ${C.border}` }}>
